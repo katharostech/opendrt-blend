@@ -1,0 +1,13 @@
+[workspace]
+authors = ["Zicklag <zicklag@katharostech.com>"]
+channels = ["conda-forge"]
+name = "blender-opendrt"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks.generate-spec]
+cmd = "python tools/convert_dctl.py --tag v1.1.0 --commit 8804747def7cdc9089f2b2ea5011596792134304"
+
+[dependencies]
+python = "3.13.*"
+
