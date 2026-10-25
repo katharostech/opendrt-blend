@@ -8,6 +8,12 @@ version = "0.1.0"
 [tasks.generate-spec]
 cmd = "python tools/convert_dctl.py --tag v1.1.0 --commit 8804747def7cdc9089f2b2ea5011596792134304"
 
+[tasks.smoke-bpy]
+cmd = "python tools/bpy_smoke.py"
+
 [dependencies]
 python = "3.13.*"
+
+[pypi-dependencies]
+bpy = "==5.2.3"
 

@@ -121,11 +121,27 @@ DCTL quirks (already encoded in spec.notes, verified in source):
 
 Blender-side facts:
 
-Target for the builder is Blender 5.2 (the user's current). The compositor
-uses unified `ShaderNode*` nodes (ShaderNodeMath, ShaderNodeVectorMath,
-ShaderNodeMix, ...) since 5.0. Matrix sockets exist in geometry nodes (4.5);
-compositor support in 5.2 is UNVERIFIED - check during builder work; the
-fallback is a flat 9x mul + add per matrix op.
+The user's daily-driver Blender is **5.3.0 Beta** (hash 3db45062d058, built
+2026-10-19) at `~/bin/blender`. STATUS previously said 5.2 - stale.
+The compositor uses unified `ShaderNode*` nodes (ShaderNodeMath,
+ShaderNodeVectorMath, ShaderNodeMix, ...) since 5.0. Matrix sockets exist in
+geometry nodes (5.1); compositor support in 5.2/5.3 is UNVERIFIED - check
+during builder work; the fallback is a flat 9x mul + add per matrix op.
+
+Node-graph generation toolchain (decided, verified 2026-10):
+
+- Builder target: official `bpy==5.2.3` PyPI wheel (Blender as a Python
+  module, cp313 == the pixi env's Python 3.13; conda-forge has no bpy
+  package). Creates `CompositorNodeTree`s and writes standalone library
+  .blends via `bpy.data.libraries.write(path, datablocks={ng})`; set
+  `asset_mark()` + `use_fake_user=True` on each group so they survive.
+- The real 5.3 Beta binary (headless: `--background --factory-startup
+  --python-expr ...`) is the authority for API probes and final validation
+  renders; a .blend authored by 5.2.3 loads in 5.3 with asset + interface
+  intact (verified). Opening it directly warns "Library file, loading empty
+  scene" - expected, it is a library file, consume via Asset Browser/append.
+- Version guard: `pixi run smoke-bpy` (`tools/bpy_smoke.py`) re-creates a
+  minimal group and round-trips it through the binary.
 - Blender view transform must be Raw/Standard around the node (OpenDRT
   already encodes for the display) - avoid double transform.
 - Node group interface panels (`NodeTreeInterfacePanel`) give the Nuke-style
