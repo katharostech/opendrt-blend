@@ -293,8 +293,8 @@ Node-graph generation toolchain (decided, verified 2026-10):
   (phase A interface/default/name/R-14 audits; phase B smoke render; phase C
   `--parity enc0|all` compares against tools/dctl_shim/build_dctl_shim).
 - `dist/OpenDRT_v1.1.0.blend` - built artifact for user testing:
-  sha256 3292524be8ad9b4540c507d829972badd8f5a6183bc1bfccabacee2fda8e3dbd
-  (33 node groups, size 899930; main 65 nodes / 735 links - the folded
+  sha256 77aa163e85f519051a185789bb4b00ec6ba8ff56d8badb264356ed746387ad7f
+  (33 node groups, size 900688; main 65 nodes / 735 links - the folded
   conversion; totals 3831 nodes / 7948 links; single libraries.write).
   Image socket description now exactly "Image in the scene linear working
   space." (2026-10-26 user decision; semantics unchanged - the fold-in
@@ -314,8 +314,31 @@ Node-graph generation toolchain (decided, verified 2026-10):
   one deterministic "OpenDRT" catalog (uuid 68af1827, uuid5);
   dist/blender_assets.cats.txt sidecar carries it; branch/fn/dgpw/vdot
   groups stay unmarked; fake-user uniform on all 33 groups.
-- Build ~10 min (Blender node create/name is O(n) per node => ~O(n^2) at
-  n~6k; acceptable).
+- Remote asset pack (2026-10-26 user decision; Blender manual
+  remote_asset_libraries.html): generate_asset_pack() runs
+  `blender -b -c asset_listing generate dist` after the blend+sidecar
+  write (cleanroom XDG tmpdirs - user caches break the generator),
+  re-asserts _asset-library-meta.json name/contact (env-overridable via
+  OPENDRT_PACK_*), asserts the index's catalog == our uuid5, and writes
+  index.html. Local dist also works as a LOCAL asset library (sidecar);
+  as a REMOTE pack it is the Pages web root.
+- GitHub Pages deployment: .github/workflows/deploy-asset-pack.yml
+  (push main / manual): checkout -> setup-pixi (frozen) -> blender
+  5.2.3 LTS download (asset listing needs the binary) -> pixi run
+  build-nodes -> configure-pages + upload dist -> deploy-pages. Pack
+  URL: https://zicklag.github.io/blender-opendrt/ (add in Blender:
+  Preferences -> Asset Libraries -> online library with that URL).
+  Asset descriptions now say "1 image input (the scene's linear working
+  space; converted in-tree)" - they land in the remote listing.
+- dist/ UNTRACKED from the repo (2026-10-26 user decision): built fresh
+  by checkout/CI; verified clean rebuild from an EMPTY dir in ~10 s (the
+  builder mkdirs the out dir itself). Two consecutive listing runs on
+  the same blend are byte-stable; the listing embeds the blend's
+  per-build sha, so listing hashes vary across rebuilds with the same
+  decided blend-byte nondeterminism - each deploy stays internally
+  consistent.
+- Build ~10-20 s wall (2026-10-26 perf-reworked graph; the listing
+  generator adds ~0.3 s).
 - libraries.write's default fake_user=False silently drops the fake-user
   bit: the 5.3 Beta reads use_fake_user=False. Fix: pass `fake_user=True`
   to libraries.write (2026-10-26, verified flag survives in 5.3 Beta).

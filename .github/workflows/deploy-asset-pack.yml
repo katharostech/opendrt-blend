@@ -1,0 +1,57 @@
+name: Deploy OpenDRT asset pack
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Git Pages deployment with the built asset pack as the web root.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pixi (locked env with bpy 5.2.3 wheel)
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          frozen: true
+
+      - name: Download Blender 5.2.3 LTS (asset listing generator)
+        run: |
+          curl -sSL --retry 3 -o /tmp/blender.tar.xz \
+            https://download.blender.org/release/Blender5.2/blender-5.2.3-linux-x64.tar.xz
+          tar -xf /tmp/blender.tar.xz -C /tmp
+          echo "BLENDER_BIN=/tmp/blender-5.2.3-linux-x64/blender" >> "$GITHUB_ENV"
+
+      - name: Build blend + asset pack listing
+        run: pixi run build-nodes
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact (dist = asset library root)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

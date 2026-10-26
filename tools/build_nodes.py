@@ -42,7 +42,11 @@ NO node layout - the group interior is compiler output, not a reading aid):
     path_remap="NONE"); never-instantiated groups removed with a note;
     fake-user bit written by libraries.write itself (fake_user=True). The
     main group is the sole asset; the "OpenDRT" catalog sidecar
-    (blender_assets.cats.txt) is written beside the file. Blend-byte
+    (blender_assets.cats.txt) is written beside the file, as is the
+    remote-asset-pack listing (_asset-library-meta.json, _v1/
+    asset-index.json) + index.html when a blender binary is available
+    (BLENDER_BIN); GitHub Pages deploys dist/ via
+    .github/workflows/deploy-asset-pack.yml. Blend-byte
     determinism is explicitly not a goal (see STATUS.md).
 
 Measured-semantics reconciliations (design doc + measurements; also printed
@@ -1887,6 +1891,89 @@ class Builder:
         return issues
 
 
+PACK_NAME = "OpenDRT"
+PACK_PAGES_URL = "https://zicklag.github.io/blender-opendrt/"
+PACK_CONTACT = {
+    "name": "Zicklag",
+    "url": "https://github.com/zicklag/blender-opendrt/",
+    "email": "zicklag@katharostech.com",
+}
+
+
+def generate_asset_pack(out_path):
+    """Generate the remote-asset-library listing + metadata into the
+    blend's directory (Blender manual: files/asset_libraries/
+    remote_asset_libraries.html). Needs a blender binary (BLENDER_BIN or
+    PATH); skipped with a note otherwise. Blender's listing generator
+    retains the meta's name/contact on re-runs; we re-assert them every
+    build so CI and checkouts converge."""
+    import os
+    import shutil
+    import subprocess
+    import tempfile
+
+    bin_path = os.environ.get("BLENDER_BIN") or shutil.which("blender")
+    if not bin_path:
+        print("asset pack listing: skipped (no blender binary; set "
+              "BLENDER_BIN)", flush=True)
+        return
+    out_dir = out_path.parent
+    # cleanroom XDG dirs: the listing must not read user prefs and fails
+    # on read-only/user caches (measured: PermissionError mkdir in the
+    # generator's startup cache init)
+    xdg_root = Path(tempfile.mkdtemp(prefix="opendrt-listing-"))
+    env = dict(os.environ)
+    for var in ("XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME"):
+        env[var] = str(xdg_root / var.lower().split("_")[1])
+        Path(env[var]).mkdir(parents=True, exist_ok=True)
+    proc = subprocess.run(
+        [bin_path, "-b", "-c", "asset_listing", "generate", str(out_dir)],
+        capture_output=True, text=True, env=env)
+    if proc.returncode != 0:
+        raise BuildError(f"asset listing generator failed: "
+                         f"{proc.stderr[-400:]}")
+    meta_path = out_dir / "_asset-library-meta.json"
+    index_path = out_dir / "_v1" / "asset-index.json"
+    meta = json.loads(meta_path.read_text())
+    meta["name"] = os.environ.get("OPENDRT_PACK_NAME", PACK_NAME)
+    contact = {"name": os.environ.get("OPENDRT_PACK_CONTACT_NAME",
+                                      PACK_CONTACT["name"]),
+               "url": os.environ.get("OPENDRT_PACK_CONTACT_URL",
+                                     PACK_CONTACT["url"]),
+               "email": os.environ.get("OPENDRT_PACK_CONTACT_EMAIL",
+                                       PACK_CONTACT["email"])}
+    meta["contact"] = contact
+    meta_path.write_text(json.dumps(meta, indent=2) + "\n")
+    index = json.loads(index_path.read_text())
+    expected_catalog = str(uuid.uuid5(uuid.NAMESPACE_DNS, "blender-opendrt"))
+    if index.get("catalogs") != [{
+            "path": "OpenDRT", "uuids": [expected_catalog],
+            "simple_name": "OpenDRT"}]:
+        raise BuildError(f"asset index catalogs drifted: "
+                         f"{index.get('catalogs')}")
+    url = os.environ.get("OPENDRT_PACK_URL", PACK_PAGES_URL)
+    out_dir.joinpath("index.html").write_text(
+        """<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>OpenDRT - Blender remote asset library</title></head>
+<body>
+<h1>OpenDRT</h1>
+<p>OpenDRT display transform as native Blender
+compositor node groups, served as a Blender remote asset library.</p>
+<p>Add it in Blender: <em>Preferences &rarr; Asset Libraries &rarr; add an
+online asset library</em> with URL <code>%s</code>. Then add the
+&ldquo;OpenDRT 1.1 &hellip;&rdquo; node groups from the asset browser, the
+compositor asset shelf, or the Add search menu.</p>
+<p><a href="_asset-library-meta.json">library metadata</a> &middot;
+<a href="_v1/asset-index.json">asset index</a> &middot;
+<a href="https://github.com/zicklag/blender-opendrt/">source</a>
+</body></html>
+""" % url)
+    print(f"asset pack: {index['asset_count']} assets, listing v1 index sha "
+          f"{meta['api_versions']['v1']['hash']} -> _asset-library-meta.json",
+          flush=True)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--spec", default="spec/opendrt-v1.1.0.json")
@@ -1978,8 +2065,9 @@ def main(argv=None):
         group.asset_data.description = (
             "OpenDRT v1.1.0 display transform as a native Blender compositor "
             f"node group{preset_note}; 9 output branches (one per display "
-            "encoding; select by linking an output), 1 image input (linear "
-            "CIE XYZ D65) + 69 parameter sockets. Provenance: spec sha256 "
+            "encoding; select by linking an output), 1 image input (the "
+            "scene's linear working space; converted in-tree) + 69 "
+            "parameter sockets. Provenance: spec sha256 "
             f"{spec_sha}; source DCTL sha256 {spec['provenance']['sha256']}; "
             f"tag {spec['provenance']['tag']} commit "
             f"{spec['provenance']['commit'][:8]}.")
@@ -2008,6 +2096,7 @@ def main(argv=None):
         f"{catalog_id}:OpenDRT:OpenDRT\n")
     print(f"catalog {catalog_id} 'OpenDRT' -> blender_assets.cats.txt",
           flush=True)
+    generate_asset_pack(out_path)
     print(f"spec sha256 {spec_sha}", flush=True)
     print(f"DCTL sha256 {spec['provenance']['sha256']}", flush=True)
     print(f"groups written: {len(bpy.data.node_groups)}", flush=True)
