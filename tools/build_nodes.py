@@ -36,7 +36,10 @@ NO node layout - the group interior is compiler output, not a reading aid):
     description (spec sha256 + DCTL sha256; NO timestamps); every emitted
     tree written via bpy.data.libraries.write(compress=True,
     path_remap="NONE"); never-instantiated groups removed with a note;
-    use_fake_user re-applied post-write (libraries.write drops it).
+    fake-user bit written by libraries.write itself (fake_user=True). The
+    main group is the sole asset; the "OpenDRT" catalog sidecar
+    (blender_assets.cats.txt) is written beside the file. Blend-byte
+    determinism is explicitly not a goal (see STATUS.md).
 
 Measured-semantics reconciliations (design doc + measurements; also printed
 by the build log):
@@ -86,6 +89,7 @@ import hashlib
 import json
 import struct
 import sys
+import uuid
 from pathlib import Path
 
 import numpy as np
@@ -1616,6 +1620,11 @@ class Builder:
                         else int(default)
                     s.default_value = bool(dv)
                 else:
+                    # FACTOR subtype: all float params carry fixed spec
+                    # min/max; subtype is UI-only (0.001-step slider, value
+                    # not rescaled) - verified round-trip in 5.3 Beta with
+                    # out-of-unit ranges (100..1000) unclamped.
+                    s.subtype = "FACTOR"
                     s.default_value = f32_from_hex(default) if \
                         isinstance(default, str) else np.float32(default)
                     s.min_value = float(mn)
@@ -1847,16 +1856,25 @@ def main(argv=None):
         print("Error: audit failed: " + "; ".join(issues))
     for note in b.dev_notes:
         print(f"NOTE: {note}", flush=True)
-    all_trees = [c["tree"] for c in b.ctx] + list(b.fn_groups.values()) + \
-        list(b.dgpw_variants.values())
+    # Full registry as the explicit write set: b.ctx loses popped branch/fn
+    # contexts, and IDs reached only via indirect expansion skip the
+    # fake_user write flag (measured 2026-10-26: with a ctx-only set the 9
+    # "OpenDRT b*" branch groups read use_fake_user=False in 5.3 Beta).
+    all_trees = {c["tree"] for c in b.ctx} | set(b.all_trees) | \
+        set(b.fn_groups.values()) | set(b.dgpw_variants.values())
     for tree in list(b.fn_groups.values()) + list(b.dgpw_variants.values()):
         if b.group_used.get(tree.name, 0) == 0:
             b.dev_notes.append(f"removing unused group '{tree.name}'")
             bpy.data.node_groups.remove(tree)
-            all_trees.remove(tree)
-    # asset hygiene (main group only is the asset)
+            all_trees.discard(tree)
+    # Asset hygiene: the main group is THE user-facing asset ("9 outputs,
+    # select by linking one"); the 9 branch/vdot/fn/dgpw groups stay internal
+    # plumbing, deliberately NOT individual assets. Its catalog is one
+    # deterministic uuid5 ("OpenDRT").
+    catalog_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, "blender-opendrt"))
     ng.asset_mark()
     ng.use_fake_user = True
+    ng.asset_data.catalog_id = catalog_id
     ng.asset_data.description = (
         "OpenDRT v1.1.0 display transform as a native Blender compositor "
         "node group; 9 output branches (one per display encoding; select by "
@@ -1865,17 +1883,31 @@ def main(argv=None):
         f"sha256 {spec_sha}; source DCTL sha256 "
         f"{spec['provenance']['sha256']}; tag {spec['provenance']['tag']} "
         f"commit {spec['provenance']['commit'][:8]}.")
-    bpy.data.libraries.write(str(out_path), datablocks=set(all_trees),
-                             compress=True, path_remap="NONE")
-    # libraries.write drops use_fake_user (measured: 5.3.0 Beta reads the
-    # written file with the flag off) - re-apply it with a full re-save.
-    bpy.ops.wm.open_mainfile(filepath=str(out_path))
-    for g2 in bpy.data.node_groups:
-        g2.use_fake_user = True
-    bpy.ops.wm.save_as_mainfile(filepath=str(out_path), compress=True,
-                                relative_remap=False)
-    print(f"size={out_path.stat().st_size} bytes (fake-user applied "
-          f"post-write)", flush=True)
+    # fake_user=True: the fake-user bit must be written by libraries.write
+    # itself (5.3 Beta reads use_fake_user=False otherwise). The historical
+    # open_mainfile/save_as_mainfile re-save workaround also re-embedded
+    # factory startup data (workspaces, scene, WinMan) - a pure library
+    # .blend must contain only the node groups.
+    bpy.data.libraries.write(str(out_path), datablocks=all_trees,
+                             compress=True, path_remap="NONE", fake_user=True)
+    print(f"size={out_path.stat().st_size} bytes (single libraries.write)",
+          flush=True)
+    # Catalog definition sidecar at the asset-library root (Blender
+    # AssetCatalogService::DEFAULT_CATALOG_FILENAME); header/grammar mirrors
+    # AssetCatalogDefinitionFile (VERSION 1, "uuid:path:simple_name").
+    out_path.parent.joinpath("blender_assets.cats.txt").write_text(
+        "# This is an Asset Catalog Definition file for Blender.\n"
+        "#\n"
+        "# Empty lines and lines starting with `#` will be ignored.\n"
+        "# The first non-ignored line should be the version indicator.\n"
+        "# Other lines are of the format \"UUID:catalog/path/for/assets:"
+        "simple catalog name\"\n"
+        "\n"
+        "VERSION 1\n"
+        "\n"
+        f"{catalog_id}:OpenDRT:OpenDRT\n")
+    print(f"catalog {catalog_id} 'OpenDRT' -> blender_assets.cats.txt",
+          flush=True)
     print(f"spec sha256 {spec_sha}", flush=True)
     print(f"DCTL sha256 {spec['provenance']['sha256']}", flush=True)
     print(f"groups written: {len(bpy.data.node_groups)}", flush=True)

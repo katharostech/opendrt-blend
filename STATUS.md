@@ -293,17 +293,34 @@ Node-graph generation toolchain (decided, verified 2026-10):
   (phase A interface/default/name/R-14 audits; phase B smoke render; phase C
   `--parity enc0|all` compares against tools/dctl_shim/build_dctl_shim).
 - `dist/OpenDRT_v1.1.0.blend` - built artifact for user testing:
-  sha256 150e76e3e72ebe6875524481563d99a4d03b7ae391b966ed5151fd5704a9cf7d
-  (nodes=6126 links=9430, size=1020094, pre-fake-user-fix build; the
-  deterministic rebuild below replaces it).
+  sha256 f06848266d3f9d2b5c5cf70b8fe59896386884aa88ee0af97033dfa14122cfff
+  (26 node groups only - pure library; main 64 nodes / 734 links,
+  3809 nodes / 7394 links total, size 772612; single libraries.write).
+  All 58 float inputs carry subtype FACTOR
+  (smooth 0.001-step slider; UI-only, min/max/defaults unclamped and
+  verified round-trip in 5.3 Beta). `dist/blender_assets.cats.txt`
+  sidecar ships the "OpenDRT" asset catalog (uuid 68af1827, deterministic
+  uuid5); the main group is the sole asset.
 
 ### Build/render facts measured this wave
 
 - Build ~10 min (Blender node create/name is O(n) per node => ~O(n^2) at
   n~6k; acceptable).
-- libraries.write DROPS use_fake_user: the 5.3 Beta reads the written file
-  with the flag off - the builder re-opens the written file and re-saves
-  with use_fake_user=True (verified 2026-10-26 on the nested build).
+- libraries.write's default fake_user=False silently drops the fake-user
+  bit: the 5.3 Beta reads use_fake_user=False. Fix: pass `fake_user=True`
+  to libraries.write (2026-10-26, verified flag survives in 5.3 Beta).
+  The former open_mainfile/save_as_mainfile re-save workaround also
+  embedded factory startup data (11 workspaces, `Empty` scene, WinMan,
+  screens) into dist/ - the build now writes a pure node-group library.
+- Blend-file byte determinism DROPPED (2026-10-26 decision): the direct
+  libraries.write flow is NOT byte-reproducible on the same path - two
+  same-path rebuilds differ in one 4-byte field per node (3809 nodes =
+  3809 4-byte clusters, ~15 kB decompressed); tiny probe writes are
+  byte-identical, so it is a container/per-save bit, not builder logic.
+  Rationale: .blend format is not designed for byte determinism; the real
+  contract is deterministic MATH, already gated by spec/DCTL sha256 +
+  golden bins + rt_smoke parity. Structural/behavior checks replace any
+  artifact-hash equality comparison in CI.
 
 ### Build-wave 2026-10-26 (perf rework, nested groups; parity RESOLVED)
 
