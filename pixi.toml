@@ -5,14 +5,25 @@ name = "blender-opendrt"
 platforms = ["linux-64"]
 version = "0.1.0"
 
+[tasks.build-shim]
+cmd = "x86_64-conda-linux-gnu-g++ -std=c++17 -O2 -ffp-contract=off -fno-fast-math tools/dctl_shim/shim.cpp -o tools/dctl_shim/build_dctl_shim"
+
 [tasks.generate-spec]
 cmd = "python tools/convert_dctl.py --tag v1.1.0 --commit 8804747def7cdc9089f2b2ea5011596792134304"
 
 [tasks.smoke-bpy]
-cmd = "python tools/bpy_smoke.py"
+
+[tasks.build-nodes]
+cmd = "python tools/build_nodes.py --spec spec/opendrt-v1.1.0.json --out dist/OpenDRT_v1.1.0.blend"
+
+[tasks.check-nodes]
+cmd = "$BLENDER_BIN -b --factory-startup dist/OpenDRT_v1.1.0.blend -P tools/rt_smoke.py -- --blend dist/OpenDRT_v1.1.0.blend --parity enc0"
+
 
 [dependencies]
 python = "3.13.*"
+gxx_linux-64 = "13.*"
+jq = ">=1.8.2,<2"
 
 [pypi-dependencies]
 bpy = "==5.2.3"

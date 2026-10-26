@@ -1,0 +1,64 @@
+{
+  "bpy_version": "5.2.3 LTS",
+  "engine": "CYCLES CPU 1smp 64x64",
+  "compositor": {
+    "device": "CPU",
+    "precision": "FULL",
+    "force_cpu_property": "scene.render.compositor_device"
+  },
+  "node_count_per_branch": 400,
+  "configs": {
+    "0": {
+      "first_s": 0.2248,
+      "runs_s": [
+        0.1114,
+        0.1057,
+        0.1039
+      ],
+      "median_s": 0.1057,
+      "outer_nodes": 3,
+      "outer_links": 2
+    },
+    "1": {
+      "first_s": 0.1594,
+      "runs_s": [
+        0.2023,
+        0.2032,
+        0.1687
+      ],
+      "median_s": 0.2023,
+      "outer_nodes": 4,
+      "outer_links": 3
+    },
+    "9": {
+      "first_s": 0.5056,
+      "runs_s": [
+        0.4668,
+        0.4563,
+        0.6167
+      ],
+      "median_s": 0.4668,
+      "outer_nodes": 20,
+      "outer_links": 27
+    },
+    "18": {
+      "first_s": 0.6878,
+      "runs_s": [
+        0.6349,
+        0.6303,
+        0.6047
+      ],
+      "median_s": 0.6303,
+      "outer_nodes": 38,
+      "outer_links": 54
+    }
+  },
+  "derived": {
+    "base_median_s": 0.1057,
+    "one_branch_median_s": 0.2023,
+    "nine_branch_median_s": 0.4668,
+    "eighteen_link_median_s": 0.6303,
+    "inferred_branch_cost_s": 0.040122,
+    "unlinked_branches_cost_c_minus_a": 0.0
+  }
+}

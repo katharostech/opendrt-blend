@@ -1,0 +1,146 @@
+[Errno 13] Permission denied: '/home/zicklag/.config/blender/5.3/extensions/user_default'
+{
+  "panel_props": [
+    "rna_type",
+    "item_type",
+    "parent",
+    "position",
+    "index",
+    "name",
+    "description",
+    "default_closed",
+    "select",
+    "interface_items",
+    "persistent_uid",
+    "identifier"
+  ],
+  "panel_defaults": {
+    "name": "P1",
+    "description": "d1",
+    "default_closed": false
+  },
+  "panel_attrs_extra": [
+    "bl_rna",
+    "default_closed",
+    "description",
+    "identifier",
+    "index",
+    "interface_items",
+    "item_type",
+    "name",
+    "parent",
+    "persistent_uid",
+    "position",
+    "rna_type",
+    "select"
+  ],
+  "panel_order_after_move_socket_first": [
+    "S3",
+    "S1",
+    "S2"
+  ],
+  "panel_socket_order_final": [
+    "S3",
+    "S1",
+    "S2"
+  ],
+  "panel_move_reorders_top": {
+    "before": [
+      "P1",
+      "S3",
+      "S1",
+      "S2",
+      "P2"
+    ],
+    "after": [
+      "P2",
+      "P1",
+      "S3",
+      "S1",
+      "S2"
+    ]
+  },
+  "child_in_parent_p2": [
+    "Child"
+  ],
+  "s1_moved_to_p2": [
+    "S1"
+  ],
+  "socket_types_ok": [
+    "NodeSocketFloat",
+    "NodeSocketColor",
+    "NodeSocketBool",
+    "NodeSocketInt",
+    "NodeSocketString",
+    "NodeSocketVector",
+    "NodeSocketMenu"
+  ],
+  "socket_types_rejected": {
+    "NodeSocketShader": "NodeTreeInterface.new_socket(): error with keyword argument \"socket_type\" -  enum \"NodeSocketShader\" not found in ('Node"
+  },
+  "bool_default": {
+    "initial": false,
+    "after_set": true
+  },
+  "float_minmax_roundtrip": {
+    "min": 0.0,
+    "max": 1.0,
+    "value": 0.18000000715255737
+  },
+  "float_socket_writable_props": [
+    "name",
+    "description",
+    "socket_type",
+    "hide_value",
+    "hide_in_modifier",
+    "force_non_field",
+    "is_inspect_output",
+    "is_panel_toggle",
+    "layer_selection_field",
+    "menu_expanded",
+    "optional_label",
+    "select",
+    "attribute_domain",
+    "default_attribute_name",
+    "structure_type",
+    "default_input",
+    "subtype",
+    "default_value",
+    "min_value",
+    "max_value"
+  ],
+  "socket_has_description": true,
+  "float_description": "legend text",
+  "node_frame_in_compositor_group": "legal",
+  "instance_input_names": [
+    "B",
+    "F"
+  ],
+  "instance_float_socket_props": [
+    "rna_type",
+    "name",
+    "label",
+    "identifier",
+    "description",
+    "is_output",
+    "select",
+    "hide",
+    "enabled",
+    "link_limit",
+    "is_linked",
+    "is_unavailable",
+    "is_multi_input",
+    "show_expanded",
+    "is_inactive",
+    "is_icon_visible",
+    "hide_value",
+    "pin_gizmo",
+    "node",
+    "type",
+    "display_shape",
+    "inferred_structure_type",
+    "default_value"
+  ],
+  "instance_clamp_on_assign": "ERR 'NodeSocketFloat' object has no attribute 'value'"
+}
+PROBE3_INTROSPECT_DONE

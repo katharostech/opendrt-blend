@@ -1,0 +1,43 @@
+Failed to create secure directory (/home/zicklag/.config/pulse): Permission denied
+00:00.477  blend            | Read blend: "/tmp/opendrt_probes/if_writer.blend"
+00:00.481  reports          | WARNING Library file, loading empty scene
+Blender 5.3.0 Beta (hash 3db45062d058 built 2026-10-19 02:34:28)
+[Errno 13] Permission denied: '/home/zicklag/.config/blender/5.3/extensions/user_default'
+PASS  group opened from blend
+PASS  interface top-level order
+PASS  panel Panel A exists
+PASS  panel Panel A default_closed
+PASS  panel Panel A description
+PASS  panel Panel A socket order
+PASS  panel Panel B exists
+PASS  panel Panel B default_closed
+PASS  panel Panel B description
+PASS  panel Panel B socket order
+PASS  socket Image exists
+PASS  socket Image default
+PASS  socket Image description
+PASS  socket Panel A/Exp exists
+PASS  socket Panel A/Exp default (tol 1e-6)
+PASS  socket Panel A/Exp description
+PASS  socket Panel A/Clamp exists
+PASS  socket Panel A/Clamp default (tol 1e-6)
+PASS  socket Panel A/Clamp description
+PASS  socket Panel B/Tint exists
+PASS  socket Panel B/Tint default
+PASS  socket Panel B/Tint description
+PASS  socket Panel B/Gamma exists
+PASS  socket Panel B/Gamma default (tol 1e-6)
+PASS  socket Panel B/Gamma description
+PASS  socket Panel B/Iters exists
+PASS  socket Panel B/Iters default (tol 1e-6)
+PASS  socket Panel B/Iters description
+PASS  output sockets order
+PASS  output Image Out type
+PASS  output Clamp Out type
+PASS  NodeFrame inside group
+/home/zicklag/git/zicklag/blender-opendrt/tools/probes/probe_interface.py:298: DeprecationWarning: 'Scene.compositing_node_group' is expected to be removed in Blender 6.0
+  bpy.context.scene.compositing_node_group = outer
+INSTANCE_FACTS: {"inputs": [["Image", "NodeSocketColor"], ["Exp", "NodeSocketFloat"], ["Clamp", "NodeSocketBool"], ["Tint", "NodeSocketColor"], ["Gamma", "NodeSocketFloat"], ["Iters", "NodeSocketInt"]], "has_min_max": [false, false, false, false, false, false], "outputs": [["Image Out", "NodeSocketColor"], ["Clamp Out", "NodeSocketBool"]], "exp_set_to_2_readback": {"attr": "default_value", "value": 2.0}}
+Info: Saved as "bin_tree.blend"
+saved /tmp/opendrt_probes/bin_tree.blend
+PROBE3_BINARY_DONE

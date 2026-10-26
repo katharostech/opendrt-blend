@@ -1,0 +1,36 @@
+00:00.627  blend            | Read blend: "/tmp/opendrt_probes/bin_tree.blend"
+Warning: File written by newer Blender binary (503.29), expect loss of data!
+PASS  group present after wheel reopen of binary tree
+PASS  interface top-level order
+PASS  panel Panel A exists
+PASS  panel Panel A default_closed
+PASS  panel Panel A description
+PASS  panel Panel A socket order
+PASS  panel Panel B exists
+PASS  panel Panel B default_closed
+PASS  panel Panel B description
+PASS  panel Panel B socket order
+PASS  socket Image exists
+PASS  socket Image default
+PASS  socket Image description
+PASS  socket Panel A/Exp exists
+PASS  socket Panel A/Exp default (tol 1e-6)
+PASS  socket Panel A/Exp description
+PASS  socket Panel A/Clamp exists
+PASS  socket Panel A/Clamp default (tol 1e-6)
+PASS  socket Panel A/Clamp description
+PASS  socket Panel B/Tint exists
+PASS  socket Panel B/Tint default
+PASS  socket Panel B/Tint description
+PASS  socket Panel B/Gamma exists
+PASS  socket Panel B/Gamma default (tol 1e-6)
+PASS  socket Panel B/Gamma description
+PASS  socket Panel B/Iters exists
+PASS  socket Panel B/Iters default (tol 1e-6)
+PASS  socket Panel B/Iters description
+PASS  output sockets order
+PASS  output Image Out type
+PASS  output Clamp Out type
+PASS  NodeFrame inside group
+INSTANCE_REOPEN: {"found": true, "group_nodes": 1, "input_names": ["Image", "Exp", "Clamp", "Tint", "Gamma", "Iters"], "output_names": ["Image Out", "Clamp Out"], "exp_value": {"attr": "default_value", "value": 2.0}}
+PROBE3_VERIFY_DONE

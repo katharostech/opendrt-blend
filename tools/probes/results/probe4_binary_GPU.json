@@ -1,0 +1,328 @@
+{
+  "runtime": "binary",
+  "bpy": "5.3.0 Beta",
+  "device": "GPU",
+  "math_ops": [
+    "ADD",
+    "SUBTRACT",
+    "MULTIPLY",
+    "DIVIDE",
+    "MULTIPLY_ADD",
+    "POWER",
+    "LOGARITHM",
+    "SQRT",
+    "INVERSE_SQRT",
+    "ABSOLUTE",
+    "EXPONENT",
+    "MINIMUM",
+    "MAXIMUM",
+    "LESS_THAN",
+    "GREATER_THAN",
+    "SIGN",
+    "COMPARE",
+    "SMOOTH_MIN",
+    "SMOOTH_MAX",
+    "ROUND",
+    "FLOOR",
+    "CEIL",
+    "TRUNC",
+    "FRACT",
+    "MODULO",
+    "FLOORED_MODULO",
+    "WRAP",
+    "SNAP",
+    "PINGPONG",
+    "SINE",
+    "COSINE",
+    "TANGENT",
+    "ARCSINE",
+    "ARCCOSINE",
+    "ARCTANGENT",
+    "ARCTAN2",
+    "SINH",
+    "COSH",
+    "TANH",
+    "RADIANS",
+    "DEGREES"
+  ],
+  "cases": [
+    {
+      "label": "passthrough_value_1.4142",
+      "op": "PASSTHROUGH",
+      "a": 1.414213562373095,
+      "b": 0.0,
+      "value": 1.414213538
+    },
+    {
+      "label": "passthrough_direct_1.4142",
+      "op": "PASSTHROUGH_DIRECT",
+      "a": 1.414213562373095,
+      "b": 0.0,
+      "value": 1.414213538
+    },
+    {
+      "label": "div_neg1_0",
+      "op": "DIVIDE",
+      "a": -1.0,
+      "b": 0.0,
+      "value": 0.0
+    },
+    {
+      "label": "div_0_0",
+      "op": "DIVIDE",
+      "a": 0.0,
+      "b": 0.0,
+      "value": 0.0
+    },
+    {
+      "label": "div_2_0",
+      "op": "DIVIDE",
+      "a": 2.0,
+      "b": 0.0,
+      "value": 0.0
+    },
+    {
+      "label": "mod_7_-4",
+      "op": "MODULO",
+      "a": 7.0,
+      "b": -4.0,
+      "value": 3.0
+    },
+    {
+      "label": "mod_-7_4",
+      "op": "MODULO",
+      "a": -7.0,
+      "b": 4.0,
+      "value": -3.0
+    },
+    {
+      "label": "mod_7_4",
+      "op": "MODULO",
+      "a": 7.0,
+      "b": 4.0,
+      "value": 3.0
+    },
+    {
+      "label": "fmod_7_-4",
+      "op": "FLOORED_MODULO",
+      "a": 7.0,
+      "b": -4.0,
+      "value": -1.0
+    },
+    {
+      "label": "fmod_-7_4",
+      "op": "FLOORED_MODULO",
+      "a": -7.0,
+      "b": 4.0,
+      "value": 1.0
+    },
+    {
+      "label": "pow_neg_0.5",
+      "op": "POWER",
+      "a": -2.0,
+      "b": 0.5,
+      "value": 0.0
+    },
+    {
+      "label": "pow_neg_0.75",
+      "op": "POWER",
+      "a": -2.0,
+      "b": 0.75,
+      "value": 0.0
+    },
+    {
+      "label": "pow_neg_0.25",
+      "op": "POWER",
+      "a": -2.0,
+      "b": 0.25,
+      "value": 0.0
+    },
+    {
+      "label": "pow_neg_0",
+      "op": "POWER",
+      "a": -2.0,
+      "b": 0.0,
+      "value": 1.0
+    },
+    {
+      "label": "pow_0_0",
+      "op": "POWER",
+      "a": 0.0,
+      "b": 0.0,
+      "value": 1.0
+    },
+    {
+      "label": "pow_neg_2",
+      "op": "POWER",
+      "a": -2.0,
+      "b": 2.0,
+      "value": 4.0
+    },
+    {
+      "label": "pow_2_3",
+      "op": "POWER",
+      "a": 2.0,
+      "b": 3.0,
+      "value": 8.0
+    },
+    {
+      "label": "sqrt_2",
+      "op": "SQRT",
+      "a": 2.0,
+      "b": 0.0,
+      "value": 1.414213538
+    },
+    {
+      "label": "inv_sqrt_2",
+      "op": "INVERSE_SQRT",
+      "a": 2.0,
+      "b": 0.0,
+      "value": 0.707106769
+    },
+    {
+      "label": "abs_-1.5",
+      "op": "ABSOLUTE",
+      "a": -1.5,
+      "b": 0.0,
+      "value": 1.5
+    },
+    {
+      "label": "trunc_2.9",
+      "op": "TRUNC",
+      "a": 2.9,
+      "b": 0.0,
+      "value": 2.0
+    },
+    {
+      "label": "trunc_-2.9",
+      "op": "TRUNC",
+      "a": -2.9,
+      "b": 0.0,
+      "value": -2.0
+    },
+    {
+      "label": "round_2.5",
+      "op": "ROUND",
+      "a": 2.5,
+      "b": 0.0,
+      "value": 3.0
+    },
+    {
+      "label": "round_-2.5",
+      "op": "ROUND",
+      "a": -2.5,
+      "b": 0.0,
+      "value": -2.0
+    },
+    {
+      "label": "floor_2.9",
+      "op": "FLOOR",
+      "a": 2.9,
+      "b": 0.0,
+      "value": 2.0
+    },
+    {
+      "label": "floor_-2.9",
+      "op": "FLOOR",
+      "a": -2.9,
+      "b": 0.0,
+      "value": -3.0
+    },
+    {
+      "label": "ceil_2.1",
+      "op": "CEIL",
+      "a": 2.1,
+      "b": 0.0,
+      "value": 3.0
+    },
+    {
+      "label": "ceil_-2.1",
+      "op": "CEIL",
+      "a": -2.1,
+      "b": 0.0,
+      "value": -2.0
+    },
+    {
+      "label": "fract_-1.25",
+      "op": "FRACT",
+      "a": -1.25,
+      "b": 0.0,
+      "value": 0.75
+    },
+    {
+      "label": "fract_1.25",
+      "op": "FRACT",
+      "a": 1.25,
+      "b": 0.0,
+      "value": 0.25
+    },
+    {
+      "label": "snap_2.34_0.5",
+      "op": "SNAP",
+      "a": 2.34,
+      "b": 0.5,
+      "value": 2.0
+    },
+    {
+      "label": "snap_2.75_0.5",
+      "op": "SNAP",
+      "a": 2.75,
+      "b": 0.5,
+      "value": 2.5
+    },
+    {
+      "label": "pingpong_5_1_3",
+      "op": "PINGPONG",
+      "a": 5.0,
+      "b": 1.0,
+      "value": 1.0
+    },
+    {
+      "label": "wrap_5_1_3",
+      "op": "WRAP",
+      "a": 5.0,
+      "b": 1.0,
+      "value": 0.5
+    },
+    {
+      "label": "cmp_eq_0.1_0.2_eps1e-6",
+      "op": "COMPARE",
+      "a": 0.1,
+      "b": 0.2,
+      "value": 0.0
+    },
+    {
+      "label": "cmp_eq_0.1_0.1002_eps1e-6",
+      "op": "COMPARE",
+      "a": 0.1,
+      "b": 0.1002,
+      "value": 0.0
+    },
+    {
+      "label": "cmp_eq_0.1_0.1002_eps1e-3",
+      "op": "COMPARE",
+      "a": 0.1,
+      "b": 0.1002,
+      "value": 1.0
+    },
+    {
+      "label": "cmp_lt_1_2",
+      "op": "LESS_THAN",
+      "a": 1.0,
+      "b": 2.0,
+      "value": 1.0
+    },
+    {
+      "label": "cmp_gt_1_2",
+      "op": "GREATER_THAN",
+      "a": 1.0,
+      "b": 2.0,
+      "value": 0.0
+    }
+  ],
+  "mix_data_type_build": {
+    "FLOAT": "ok",
+    "VECTOR": "ok",
+    "RGBA": "ok"
+  }
+}

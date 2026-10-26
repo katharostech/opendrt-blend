@@ -1,0 +1,423 @@
+{
+  "runtime": "real binary",
+  "accepted_enums": {
+    "options_count": 64,
+    "options": [
+      "ACES 1.3 sRGB",
+      "ACES 2.0 sRGB",
+      "ACES2065-1",
+      "ACEScc",
+      "ACEScct",
+      "ACEScg",
+      "ADX10",
+      "ADX16",
+      "ARRI LogC3 (EI800)",
+      "ARRI LogC4",
+      "AgX Base sRGB",
+      "AgX Log",
+      "Apple Log",
+      "Apple Log 2",
+      "BMDFilm WideGamut Gen5",
+      "CanonLog2 CinemaGamut D55",
+      "CanonLog3 CinemaGamut D55",
+      "D-Log D-Gamut",
+      "DaVinci Intermediate WideGamut",
+      "Display P3",
+      "Filmic Log",
+      "Filmic sRGB",
+      "Gamma 1.8 Encoded Rec.709",
+      "Gamma 2.2 Encoded AP1",
+      "Gamma 2.2 Encoded AdobeRGB",
+      "Gamma 2.2 Encoded Rec.709",
+      "Gamma 2.4 Encoded Rec.709",
+      "Khronos PBR Neutral sRGB",
+      "Linear ARRI Wide Gamut 3",
+      "Linear ARRI Wide Gamut 4",
+      "Linear Adobe RGB",
+      "Linear Apple Wide Gamut",
+      "Linear BMD WideGamut Gen5",
+      "Linear CIE-XYZ D65",
+      "Linear CIE-XYZ E",
+      "Linear CinemaGamut D55",
+      "Linear D-Gamut",
+      "Linear DCI-P3 D65",
+      "Linear DaVinci WideGamut",
+      "Linear FilmLight E-Gamut",
+      "Linear REDWideGamutRGB",
+      "Linear Rec.2020",
+      "Linear Rec.709",
+      "Linear S-Gamut3",
+      "Linear S-Gamut3.Cine",
+      "Linear V-Gamut",
+      "Linear Venice S-Gamut3",
+      "Linear Venice S-Gamut3.Cine",
+      "Log3G10 REDWideGamutRGB",
+      "Non-Color",
+      "Rec.1886",
+      "Rec.2020",
+      "Rec.2100-HLG",
+      "Rec.2100-PQ",
+      "Rec.709-A",
+      "S-Log3 S-Gamut3",
+      "S-Log3 S-Gamut3.Cine",
+      "S-Log3 Venice S-Gamut3",
+      "S-Log3 Venice S-Gamut3.Cine",
+      "V-Log V-Gamut",
+      "sRGB",
+      "sRGB Encoded AP1",
+      "sRGB Encoded P3-D65",
+      "scene_linear"
+    ],
+    "to_options": [
+      "ACES 1.3 sRGB",
+      "ACES 2.0 sRGB",
+      "ACES2065-1",
+      "ACEScc",
+      "ACEScct",
+      "ACEScg",
+      "ADX10",
+      "ADX16",
+      "ARRI LogC3 (EI800)",
+      "ARRI LogC4",
+      "AgX Base sRGB",
+      "AgX Log",
+      "Apple Log",
+      "Apple Log 2",
+      "BMDFilm WideGamut Gen5",
+      "CanonLog2 CinemaGamut D55",
+      "CanonLog3 CinemaGamut D55",
+      "D-Log D-Gamut",
+      "DaVinci Intermediate WideGamut",
+      "Display P3",
+      "Filmic Log",
+      "Filmic sRGB",
+      "Gamma 1.8 Encoded Rec.709",
+      "Gamma 2.2 Encoded AP1",
+      "Gamma 2.2 Encoded AdobeRGB",
+      "Gamma 2.2 Encoded Rec.709",
+      "Gamma 2.4 Encoded Rec.709",
+      "Khronos PBR Neutral sRGB",
+      "Linear ARRI Wide Gamut 3",
+      "Linear ARRI Wide Gamut 4",
+      "Linear Adobe RGB",
+      "Linear Apple Wide Gamut",
+      "Linear BMD WideGamut Gen5",
+      "Linear CIE-XYZ D65",
+      "Linear CIE-XYZ E",
+      "Linear CinemaGamut D55",
+      "Linear D-Gamut",
+      "Linear DCI-P3 D65",
+      "Linear DaVinci WideGamut",
+      "Linear FilmLight E-Gamut",
+      "Linear REDWideGamutRGB",
+      "Linear Rec.2020",
+      "Linear Rec.709",
+      "Linear S-Gamut3",
+      "Linear S-Gamut3.Cine",
+      "Linear V-Gamut",
+      "Linear Venice S-Gamut3",
+      "Linear Venice S-Gamut3.Cine",
+      "Log3G10 REDWideGamutRGB",
+      "Non-Color",
+      "Rec.1886",
+      "Rec.2020",
+      "Rec.2100-HLG",
+      "Rec.2100-PQ",
+      "Rec.709-A",
+      "S-Log3 S-Gamut3",
+      "S-Log3 S-Gamut3.Cine",
+      "S-Log3 Venice S-Gamut3",
+      "S-Log3 Venice S-Gamut3.Cine",
+      "V-Log V-Gamut",
+      "sRGB",
+      "sRGB Encoded AP1",
+      "sRGB Encoded P3-D65",
+      "scene_linear"
+    ],
+    "from_accepted_try": [
+      "Linear Rec.709",
+      "Linear Rec.2020",
+      "ACEScg",
+      "ACES2065-1",
+      "Linear CIE-XYZ D65"
+    ],
+    "to_accepted_try": [
+      "Linear Rec.709",
+      "Linear Rec.2020",
+      "ACEScg",
+      "ACES2065-1",
+      "Linear CIE-XYZ D65"
+    ],
+    "error_msg_len": 1376
+  },
+  "from_tests": [
+    {
+      "from": "Linear Rec.709",
+      "max_abs_vs_f32": 2.384185791015625e-07,
+      "max_rel_vs_f32": 3.09613850637531e-07,
+      "max_rel_sig_vs_f32": 3.09613850637531e-07,
+      "max_abs_vs_f64": 9.536743181826068e-07,
+      "bitwise_equal_f32": false,
+      "argmax_pixel": 1,
+      "argmax_channel": 2,
+      "argmax_values": {
+        "rendered": [
+          1.9009119272232056,
+          2.0,
+          2.1781156063079834
+        ],
+        "ref_f32": [
+          1.900911808013916,
+          2.0,
+          2.1781153678894043
+        ],
+        "ref_f64": [
+          1.9009118541033434,
+          2.0000000000000004,
+          2.1781155015197577
+        ]
+      },
+      "matrix_const": "matrix_rec709_to_xyz",
+      "blender_matrix": [
+        [
+          0.412390798330307,
+          0.3575843572616577,
+          0.18048079311847687
+        ],
+        [
+          0.2126390039920807,
+          0.7151686549186707,
+          0.07219229638576508
+        ],
+        [
+          0.019330818206071854,
+          0.11919479817152023,
+          0.9505321383476257
+        ]
+      ],
+      "spec_matrix": [
+        [
+          0.41239079926595923,
+          0.3575843393838781,
+          0.18048078840183435
+        ],
+        [
+          0.21263900587151022,
+          0.7151686787677562,
+          0.07219231536073374
+        ],
+        [
+          0.019330818715591818,
+          0.11919477979462602,
+          0.950532152249661
+        ]
+      ],
+      "matrix_diff_max": 2.3849085595273323e-08
+    },
+    {
+      "from": "Linear Rec.2020",
+      "max_abs_vs_f32": 9.5367431640625e-07,
+      "max_rel_vs_f32": 8.166504729065841e-07,
+      "max_rel_sig_vs_f32": 8.166504729065841e-07,
+      "max_abs_vs_f64": 1.2000643394571853e-06,
+      "bitwise_equal_f32": false,
+      "argmax_pixel": 1,
+      "argmax_channel": 0,
+      "argmax_values": {
+        "rendered": [
+          9.504560470581055,
+          10.0,
+          10.89057731628418
+        ],
+        "ref_f32": [
+          9.504559516906738,
+          10.0,
+          10.89057731628418
+        ],
+        "ref_f64": [
+          9.504559270516715,
+          10.0,
+          10.890577507598781
+        ]
+      },
+      "matrix_const": "matrix_rec2020_to_xyz",
+      "blender_matrix": [
+        [
+          0.6369580626487732,
+          0.14461691677570343,
+          0.16888099908828735
+        ],
+        [
+          0.26270022988319397,
+          0.6779980659484863,
+          0.05930176377296448
+        ],
+        [
+          0.0,
+          0.028072679415345192,
+          1.0609850883483887
+        ]
+      ],
+      "spec_matrix": [
+        [
+          0.636958048301291,
+          0.1446169035862084,
+          0.16888097516417205
+        ],
+        [
+          0.2627002120112669,
+          0.6779980715188711,
+          0.05930171646986194
+        ],
+        [
+          5e-17,
+          0.028072693049087445,
+          1.0609850577107907
+        ]
+      ],
+      "matrix_diff_max": 4.730310253914238e-08
+    },
+    {
+      "from": "ACEScg",
+      "max_abs_vs_f32": 0.0038137396331876516,
+      "max_rel_vs_f32": 12.975462371311247,
+      "max_rel_sig_vs_f32": 0.7358454347349114,
+      "max_abs_vs_f64": 0.0038137397269759517,
+      "bitwise_equal_f32": false,
+      "argmax_pixel": 2,
+      "argmax_channel": 2,
+      "argmax_values": {
+        "rendered": [
+          0.12823612987995148,
+          0.674340009689331,
+          0.0013690602499991655
+        ],
+        "ref_f32": [
+          0.12717992067337036,
+          0.6724644899368286,
+          0.005182799883186817
+        ],
+        "ref_f64": [
+          0.12717992553753826,
+          0.6724644789926177,
+          0.005182799976975117
+        ]
+      },
+      "matrix_const": "matrix_ap1_to_xyz",
+      "blender_matrix": [
+        [
+          0.6522375345230103,
+          0.12823612987995148,
+          0.16998225450515747
+        ],
+        [
+          0.26767218112945557,
+          0.674340009689331,
+          0.05798783153295517
+        ],
+        [
+          -0.005381815601140261,
+          0.0013690602499991655,
+          1.0930705070495605
+        ]
+      ],
+      "spec_matrix": [
+        [
+          0.652418717671913,
+          0.12717992553753826,
+          0.17085728384222046
+        ],
+        [
+          0.2680640591942713,
+          0.6724644789926177,
+          0.05947146181311084
+        ],
+        [
+          -0.005469928510497568,
+          0.005182799976975117,
+          1.089344879293401
+        ]
+      ],
+      "matrix_diff_max": 0.0038137397269759517
+    },
+    {
+      "from": "ACES2065-1",
+      "max_abs_vs_f32": 0.00452914834022522,
+      "max_rel_vs_f32": 5.533866961615916,
+      "max_rel_sig_vs_f32": 2.6455733636370775,
+      "max_abs_vs_f64": 0.004529148334680099,
+      "bitwise_equal_f32": false,
+      "argmax_pixel": 2,
+      "argmax_channel": 2,
+      "argmax_values": {
+        "rendered": [
+          -0.004451445769518614,
+          0.7295215725898743,
+          -0.0037107064854353666
+        ],
+        "ref_f32": [
+          -0.005741920322179794,
+          0.7272139191627502,
+          0.0008184418547898531
+        ],
+        "ref_f64": [
+          -0.005741920550373971,
+          0.7272139028114357,
+          0.000818441849244732
+        ]
+      },
+      "matrix_const": "matrix_ap0_to_xyz",
+      "blender_matrix": [
+        [
+          0.9382798671722412,
+          -0.004451445769518614,
+          0.01662752404808998
+        ],
+        [
+          0.337368905544281,
+          0.7295215725898743,
+          -0.06689045578241348
+        ],
+        [
+          0.0011739508481696248,
+          -0.0037107064854353666,
+          1.0915944576263428
+        ]
+      ],
+      "spec_matrix": [
+        [
+          0.9386309487502732,
+          -0.005741920550373971,
+          0.017566898851772296
+        ],
+        [
+          0.33809359492202157,
+          0.7272139028114357,
+          -0.06530749773345719
+        ],
+        [
+          0.000723121511341166,
+          0.000818441849244732,
+          1.0875161873992927
+        ]
+      ],
+      "matrix_diff_max": 0.004529148334680099
+    }
+  ],
+  "identity_test": {
+    "space": "Linear Rec.709",
+    "max_abs": 0.0
+  },
+  "passthrough_control": {
+    "max_abs": 0.0,
+    "bitwise_equal": true
+  },
+  "verdicts": {
+    "Linear Rec.709": "identical",
+    "Linear Rec.2020": "identical",
+    "ACEScg": "DIVERGES",
+    "ACES2065-1": "DIVERGES"
+  },
+  "bpy_version": "5.3.0 Beta",
+  "to_name_used": "Linear CIE-XYZ D65"
+}
