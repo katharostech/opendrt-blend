@@ -305,7 +305,7 @@ Node-graph generation toolchain (decided, verified 2026-10):
   with the flag off - the builder re-opens the written file and re-saves
   with use_fake_user=True (verified 2026-10-26 on the nested build).
 
-### Build-wave 2026-10-26 (perf rework, nested groups; parity still open)
+### Build-wave 2026-10-26 (perf rework, nested groups; parity RESOLVED)
 
 The pink-cast session's open items were resolved or re-scoped:
 
@@ -321,13 +321,18 @@ The pink-cast session's open items were resolved or re-scoped:
   iteration hit PANEL items with `.in_out` (must filter item_type first)
   and compared socket_type against enum names ("FLOAT"/"COLOR") while 5.3
   Beta returns ids ("NodeSocketFloat"/"NodeSocketColor").
-- **Pink cast (was open #3): still open, UNCHANGED by the rework.** The
-  node-vs-shim parity (enc0 ramp, 4096 pts) FAILS with max_abs 0.068973;
-  the old flat build and the new nested build render bit-identically
-  (enc1 ramp old-vs-new max_abs = 0.0), so the divergence pre-dates the
-  rework and lives inside the emission-vs-shim semantics or upstream.
-  Bisect by stage: the r{src} node names map 1:1 to DCTL stage boundaries,
-  and fn groups now give single places to tap.
+- **Pink cast (was open #3): RESOLVED 2026-10-26.** Root cause: dgpw's
+  A633 blend in `tools/build_nodes.py` fed the CAT-ladder result with the
+  call-site `rgb_h` head (pre-`matrix_p3d65_to_xyz`, P3-D65-linear) instead
+  of the post-A598 XYZ value; for identity-CAT configs (cwp==2, the pinned
+  D65) the blend mixed P3D65-linear with XYZ (DCTL mixes the value with
+  itself). Fixed at src 633 (blend input `rgb_h` -> post-A598 `rgb`).
+  Bisection: instrumented builder emission (var->node heads per statement)
+  vs an f32 IR interpreter seeded from the shim's --json-info; first
+  divergent tap = src 1140 (dgpw); all prior taps <= 2.4e-7. After the fix,
+  full parity (9 encodings x patch-grid + 4096-pt neutral ramp) passes:
+  ramps bit-identical for enc0-6/8, enc7 <= 6e-8, worst patch (enc8) <=
+  1.7e-6 (gate 1e-4).
 
 Nested-group perf rework (user plan, this wave):
 
@@ -365,12 +370,11 @@ Nested-group perf rework (user plan, this wave):
 
 ### Open for the next session
 
-1. Diagnose/fix the parity/pink-cast divergence (node vs compiled DCTL
-   shim, enc0 ramp max_abs 0.069) - stage bisect via r{src} labels; fn
-   groups make it cheap to tap an intermediate: add a temporary output to
-   a branch group or re-render a var through a wrapper.
-2. Rebuild the production artifact (`pixi run build-nodes` => dist/) when
-   convenient; rt_smoke already gates the new structure end-to-end.
+1. ~~Diagnose/fix the parity/pink-cast divergence~~ DONE 2026-10-26
+   (dgpw A633 blend input; see "Pink cast" above).
+2. ~~Rebuild the production artifact (`pixi run build-nodes` => dist/)~~
+   DONE 2026-10-26: dist/OpenDRT_v1.1.0.blend rebuilt with the fix and the
+   full parity suite green.
 3. Optional: re-probe lazy evaluation THROUGH nested groups (9-linked vs
    1-linked timing on the new structure; the flat-tree fact carried from
    PROBE_REPORT should transfer since each output is fed by its own
@@ -379,24 +383,6 @@ Nested-group perf rework (user plan, this wave):
    VectorMath packing of per-channel triples (bg-2 verified 3 Math -> 1
    VectorMath; parity-safe for add/sub/mul/div), branch-group instance
    parallelization (per-tree emission is context-isolated already).
-
-
-
-UPDATE 2026-10-26 (perf wave, second session): the session-end note below
-is superseded - determinism (same-path), fake-user landing, and the smoke
-gate are verified above; dist/ still holds the older flat build A
-(sha256 150e76e3e72ebe6875524481563d99a4d03b7ae391b966ed5151fd57 04a9cf7d)
-while the nested-group builder lives in-tree (13.5 s builds); the pink
-cast remains the open item for the next session.
-
-Legacy session-end note (superseded): the session was cut before the
-rebuilds finished to free CPU for a builder-performance agent. State:
-dist/OpenDRT_v1.1.0.blend = the (older, audit-passing, fake-user-less)
-build A - kept untouched for user testing; the fake-user re-save fix +
-[pt_enable]-defunct warning change landed in-tree unverified at the time
-(now verified). tools/rt_smoke.py and the pixi tasks are committed. The
-validation plan (sections below) still applies for the Validate wave
-after node-vs-shim parity passes.
 
 
 Provenance rule: any committed spec JSON must carry tag + commit + source

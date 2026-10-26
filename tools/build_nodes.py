@@ -1479,11 +1479,11 @@ class Builder:
                             f"cwp_f (src {src})")
         blended = {}
         for ci, c in enumerate("xyz"):
-            t0 = self.math1(stmt, "MULTIPLY", self.comp_head(rgb_h, "x"),
+            t0 = self.math1(stmt, "MULTIPLY", self.comp_head(rgb, "x"),
                             mcat[ci][0], label)
-            t1 = self.math1(stmt, "MULTIPLY", self.comp_head(rgb_h, "y"),
+            t1 = self.math1(stmt, "MULTIPLY", self.comp_head(rgb, "y"),
                             mcat[ci][1], label)
-            t2 = self.math1(stmt, "MULTIPLY", self.comp_head(rgb_h, "z"),
+            t2 = self.math1(stmt, "MULTIPLY", self.comp_head(rgb, "z"),
                             mcat[ci][2], label)
             s1 = self.math1(stmt, "ADD", t0, t1, label)
             s2 = self.math1(stmt, "ADD", s1, t2, label)
