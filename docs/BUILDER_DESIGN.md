@@ -7,7 +7,8 @@ algorithms: every emission is a spec fact (src-cited) or a flagged decision.
 
 ## 0. Builder output
 
-One Blender **CompositorNodeTree** node group `OpenDRT v1.1.0`
+Eight Blender **CompositorNodeTree** node groups (§0a): the main
+`OpenDRT 1.1 Base`
 (`bpy.data.node_groups.new(...)`) in a .blend asset. Interface: input socket
 `Image (Linear CIE XYZ D65)` (NodeSocketColor; tooltip: values used as-is, no
 color-management conversion) + 69 input sockets (§E) + **9 color OUTPUT
@@ -18,6 +19,32 @@ matrix sockets, no Menu Switch, no CompositorNodeSwitch (unusable in 5.2.3,
 STATUS). 5.x render path [measured, PROBE_REPORT]: Composite node removed; the
 tree is a free-standing datablock on `scene.compositing_node_group`, read from
 its own output sockets. Harness/render settings = Build wave.
+
+
+## 0a. Preset nodes (user decision 2026-10-26)
+
+- Main group renamed "OpenDRT 1.1 Base"; its input defaults = the official
+  **Base** look chain (DCTL 779-781; supersedes the Standard-default
+  decision). The 64 chain-driven sockets get the chain value; the 5
+  non-chain knobs (tn_Lp/tn_Lg/tn_gb/pt_hdr/clamp) keep their UI defines.
+- Every other official look (Standard, Arriba, Sylvan, Colorful, Aery,
+  Dystopic, Umbra) = a **thin wrapper** "OpenDRT 1.1 [look]": exactly 3
+  nodes (GroupInput, one CompositorNodeGroup instance of OpenDRT 1.1 Base
+  named "base", GroupOutput), every input/output forwarded one-to-one by
+  name; only the wrapper's socket defaults differ. Copies share branch/fn/
+  dgpw groups (totals 3830 nodes / 7947 links; branch count unchanged).
+- Math-exact by construction: look chains (DCTL 758-781) set only exposed
+  params; tonescale combos (787-825) only contrast knobs; "USE LOOK
+  PRESET" (tonescale_preset==0) emits nothing; clamp=1 hard-coded in
+  presets mode (828).
+- spec look entries are keyed by internal names (tn_con); builder ids are
+  underscored (_tn_con) - bridged via ui_to_internal (unknown/non-node
+  keys fail the build).
+- rt_smoke: per-look default asserts (spec-driven) + per-preset parity;
+  the shim stays look=Standard and presets are reached via `--param`
+  post-selection overrides with that look's chain values (f32-exact
+  serialization). Branch/fn/dgpw/vdot groups are NOT assets; the 8
+  user-facing groups are, in the one "OpenDRT" catalog.
 
 ## A. IR inventory
 
@@ -284,9 +311,11 @@ internal cwp with options D93..D50 and default 2 (DCTL 54); the preset-mode
 combo has idx 0 "USE LOOK PRESET" + 1..6 = D93..D50 (DCTL 126) — UI sugar,
 unreachable with look baked (Standard look's cwp = 2 = D65 = socket default;
 DCTL combo idx k∈{1..6} ↔ socket k−1).
-DEFAULT = **standard-preset resolved value** (NOT the `_`-param UI define!), f32
-exact (hex col), UI min/max/step from the `_`-param defines → socket description.
-Sources: look Standard (DCTL 758-759), DCTL 828, DCTL 17-20.
+DEFAULT = **the base socket-table value** (the Standard look's resolved
+value, hex col, f32-exact) **overridden by §0a**: main carries the Base
+look chain (DCTL 779-781), preset copies carry their own chain; the 5
+non-chain knobs use the `_`-param UI defines (DCTL 17-20, 828). UI
+min/max/step from the `_`-param defines → socket description.
 
 | socket (name) | id | kind | f32 default (hex) | min/max/step | src |
 |---|---|---|---|---|---|

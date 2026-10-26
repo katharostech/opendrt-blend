@@ -7,7 +7,10 @@ design-doc fallbacks) and spec/opendrt-v1.1.0.json (the IR).
 
 Emission (user decision 2026-10-26: nested node groups; NO NodeFrames and
 NO node layout - the group interior is compiler output, not a reading aid):
-  - main tree "OpenDRT v1.1.0": interface = 1 input "Image" (NodeSocketColor
+  - main tree "OpenDRT 1.1 Base" (defaults = the official "Base" look
+    preset; every other official look also gets a thin wrapper node
+    "OpenDRT 1.1 [look]" = one Base instance, inputs forwarded 1:1):
+    interface = 1 input "Image" (NodeSocketColor
     = linear CIE XYZ D65, values used as-is, no color-management conversion
     in-tree) + 69 parameter sockets + 9 color outputs (one per display
     encoding; selection = which output is linked; per-output lazy
@@ -95,7 +98,8 @@ from pathlib import Path
 import numpy as np
 import bpy
 
-GROUP_NAME = "OpenDRT v1.1.0"
+GROUP_NAME = "OpenDRT 1.1 Base"
+PRESET_PREFIX = "OpenDRT 1.1 "
 
 CLUSTER_SRC = set(range(943, 961))         # shared tonescale cluster
 CLUSTER_PER_BRANCH = {948, 953}            # ts_p / ts_dsc move per branch
@@ -1587,8 +1591,8 @@ class Builder:
     # interface
     # ------------------------------------------------------------------
 
-    def build_interface(self):
-        iface = self.tree.interface
+    def build_interface(self, preset_vals=None, tree=None):
+        iface = (tree or self.tree).interface
         i_in = iface.new_socket("Image", in_out="INPUT",
                                 socket_type="NodeSocketColor",
                                 description=IMAGE_SOCKET_DESC)
@@ -1616,8 +1620,12 @@ class Builder:
                     else "NodeSocketFloat",
                     parent=p, description=tooltip + enum_note + rng)
                 if kind == "bool":
-                    dv = int(default, 16) if isinstance(default, str) \
-                        else int(default)
+                    if preset_vals is not None and \
+                            ui_to_internal(ui) in preset_vals:
+                        dv = int(preset_vals[ui_to_internal(ui)])
+                    else:
+                        dv = int(default, 16) if isinstance(default, str) \
+                            else int(default)
                     s.default_value = bool(dv)
                 else:
                     # FACTOR subtype: all float params carry fixed spec
@@ -1625,11 +1633,55 @@ class Builder:
                     # not rescaled) - verified round-trip in 5.3 Beta with
                     # out-of-unit ranges (100..1000) unclamped.
                     s.subtype = "FACTOR"
-                    s.default_value = f32_from_hex(default) if \
-                        isinstance(default, str) else np.float32(default)
+                    intern = ui_to_internal(ui)
+                    if preset_vals is not None and intern in preset_vals:
+                        s.default_value = np.float32(preset_vals[intern])
+                    else:
+                        s.default_value = f32_from_hex(default) if \
+                            isinstance(default, str) else np.float32(default)
                     s.min_value = float(mn)
                     s.max_value = float(mx)
         return i_in, outs, panels
+
+    def build_preset_groups(self, ng):
+        """One thin wrapper node per official look preset (user decision
+        2026-10-26): the main group is the "Base" look; every other look
+        becomes a wrapper "OpenDRT 1.1 [look]" containing exactly one
+        instance of OpenDRT Base (node named "base"), with every input/
+        output socket forwarded one-to-one and the look's chain values as
+        the wrapper's own interface defaults. Math-exact: DCTL look chains
+        (758-781) set only exposed params, tonescale combos (787-825) set
+        merely contrast knobs, "USE LOOK PRESET" is a no-op, and clamp=1
+        is hard-coded in presets mode."""
+        # spec look entries are keyed by internal param names (tn_con);
+        # table ids are underscored (_tn_con) - bridge via ui_to_internal.
+        chain_ids = {ui_to_internal(r[1]) for r in SOCKET_TABLE}
+        presets = []
+        for entry in self.spec["selection"]["look"]["entries"]:
+            if entry["name"] == "Base":
+                continue
+            extra = set(entry["values"]) - chain_ids
+            if extra:
+                raise BuildError(f"look preset '{entry['name']}' sets "
+                                 f"non-node parameters: {sorted(extra)}")
+            pre = bpy.data.node_groups.new(PRESET_PREFIX + entry["name"],
+                                           "CompositorNodeTree")
+            self.build_interface(tree=pre, preset_vals=entry["values"])
+            gin = pre.nodes.new("NodeGroupInput")
+            inst = pre.nodes.new("CompositorNodeGroup")
+            inst.name = "base"
+            inst.node_tree = ng
+            gout = pre.nodes.new("NodeGroupOutput")
+            for it in pre.interface.items_tree:
+                if it.item_type != "SOCKET":
+                    continue
+                if it.in_out == "INPUT":
+                    pre.links.new(gin.outputs[it.name], inst.inputs[it.name])
+                elif it.in_out == "OUTPUT":
+                    pre.links.new(inst.outputs[it.name],
+                                  gout.inputs[it.name])
+            presets.append(pre)
+        return presets
 
     # ------------------------------------------------------------------
     # graph build
@@ -1833,10 +1885,17 @@ def main(argv=None):
     b = Builder(spec, print)
     print("PHASE: cross-check", flush=True)
     b.cross_check_inventory()
+    look_vals = {e["name"]: e["values"] for e in
+                 spec["selection"]["look"]["entries"]}
+    base_vals = look_vals["Base"]
     ng = bpy.data.node_groups.new(GROUP_NAME, "CompositorNodeTree")
     b.push_ctx(ng, "bS")
     print("PHASE: interface", flush=True)
-    b.build_interface()
+    # The main group defaults to the official "Base" look (user decision
+    # 2026-10-26; replaces the Standard-preset defaults). The Base chain
+    # sets only exposed params (DCTL 779-781), so this is a pure interface
+    # change; the 5 non-chain params keep their table defaults.
+    b.build_interface(preset_vals=base_vals)
     print("PHASE: fn-groups", flush=True)
     plan = b.plan_fn_groups()
     for name in plan:
@@ -1856,33 +1915,54 @@ def main(argv=None):
         print("Error: audit failed: " + "; ".join(issues))
     for note in b.dev_notes:
         print(f"NOTE: {note}", flush=True)
+    # Official preset nodes (user decision 2026-10-26): every look preset
+    # other than Base becomes a separate node group with identical
+    # interface/graph and that look's chain values as input defaults
+    # (look chains set only exposed params: DCTL 758-781).
+    preset_groups = b.build_preset_groups(ng)
+    print("preset groups: " + ", ".join(g.name for g in preset_groups),
+          flush=True)
     # Full registry as the explicit write set: b.ctx loses popped branch/fn
     # contexts, and IDs reached only via indirect expansion skip the
     # fake_user write flag (measured 2026-10-26: with a ctx-only set the 9
     # "OpenDRT b*" branch groups read use_fake_user=False in 5.3 Beta).
     all_trees = {c["tree"] for c in b.ctx} | set(b.all_trees) | \
-        set(b.fn_groups.values()) | set(b.dgpw_variants.values())
+        set(b.fn_groups.values()) | set(b.dgpw_variants.values()) | \
+        set(preset_groups)
     for tree in list(b.fn_groups.values()) + list(b.dgpw_variants.values()):
         if b.group_used.get(tree.name, 0) == 0:
             b.dev_notes.append(f"removing unused group '{tree.name}'")
             bpy.data.node_groups.remove(tree)
             all_trees.discard(tree)
-    # Asset hygiene: the main group is THE user-facing asset ("9 outputs,
-    # select by linking one"); the 9 branch/vdot/fn/dgpw groups stay internal
-    # plumbing, deliberately NOT individual assets. Its catalog is one
-    # deterministic uuid5 ("OpenDRT").
+    # Asset hygiene: the 8 user-facing groups (main "Base" + the 7 preset
+    # wrappers) are the assets; branch/vdot/fn/dgpw groups stay internal
+    # plumbing, deliberately NOT assets. All share one deterministic
+    # catalog uuid5 ("OpenDRT").
     catalog_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, "blender-opendrt"))
-    ng.asset_mark()
-    ng.use_fake_user = True
-    ng.asset_data.catalog_id = catalog_id
-    ng.asset_data.description = (
-        "OpenDRT v1.1.0 display transform as a native Blender compositor "
-        "node group; 9 output branches (one per display encoding; select by "
-        "linking an output), 1 image input (linear CIE XYZ D65) + 69 "
-        f"parameter sockets, {len(OUTPUTS)} outputs. Provenance: spec "
-        f"sha256 {spec_sha}; source DCTL sha256 "
-        f"{spec['provenance']['sha256']}; tag {spec['provenance']['tag']} "
-        f"commit {spec['provenance']['commit'][:8]}.")
+    for group, look_name in ([(ng, "Base")] +
+                             [(g, g.name.removeprefix(PRESET_PREFIX))
+                              for g in preset_groups]):
+        group.asset_mark()
+        group.use_fake_user = True
+        group.asset_data.catalog_id = catalog_id
+        preset_note = (f", {look_name} look preset (official OpenDRT "
+                       "preset; thin wrapper node: one OpenDRT 1.1 Base "
+                       "instance inside with every input forwarded 1:1 and "
+                       "every look-chain control defaulted to this "
+                       "preset's DCTL chain values)"
+                       if look_name != "Base" else
+                       ", Base look preset (official OpenDRT 'Base'; all "
+                       "look-chain controls defaulted to the Base DCTL "
+                       "chain values. Every official look is also available "
+                       "as a separate preset node 'OpenDRT 1.1 [look]')")
+        group.asset_data.description = (
+            "OpenDRT v1.1.0 display transform as a native Blender compositor "
+            f"node group{preset_note}; 9 output branches (one per display "
+            "encoding; select by linking an output), 1 image input (linear "
+            "CIE XYZ D65) + 69 parameter sockets. Provenance: spec sha256 "
+            f"{spec_sha}; source DCTL sha256 {spec['provenance']['sha256']}; "
+            f"tag {spec['provenance']['tag']} commit "
+            f"{spec['provenance']['commit'][:8]}.")
     # fake_user=True: the fake-user bit must be written by libraries.write
     # itself (5.3 Beta reads use_fake_user=False otherwise). The historical
     # open_mainfile/save_as_mainfile re-save workaround also re-embedded

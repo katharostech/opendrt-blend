@@ -293,17 +293,18 @@ Node-graph generation toolchain (decided, verified 2026-10):
   (phase A interface/default/name/R-14 audits; phase B smoke render; phase C
   `--parity enc0|all` compares against tools/dctl_shim/build_dctl_shim).
 - `dist/OpenDRT_v1.1.0.blend` - built artifact for user testing:
-  sha256 f06848266d3f9d2b5c5cf70b8fe59896386884aa88ee0af97033dfa14122cfff
-  (26 node groups only - pure library; main 64 nodes / 734 links,
-  3809 nodes / 7394 links total, size 772612; single libraries.write).
-  All 58 float inputs carry subtype FACTOR
-  (smooth 0.001-step slider; UI-only, min/max/defaults unclamped and
-  verified round-trip in 5.3 Beta). `dist/blender_assets.cats.txt`
-  sidecar ships the "OpenDRT" asset catalog (uuid 68af1827, deterministic
-  uuid5); the main group is the sole asset.
-
-### Build/render facts measured this wave
-
+  sha256 76eaf9ecee0575c2... (33 node groups, size 900233; main 64 nodes /
+  734 links; totals 3830 nodes / 7947 links; single libraries.write).
+  Preset nodes are THIN WRAPPERS (2026-10-26 user decision, replacing the
+  initial full-copy variant): "OpenDRT 1.1 [look]" = GroupInput + one
+  "base" instance of OpenDRT 1.1 Base + GroupOutput, inputs/outputs
+  forwarded one-to-one, interface defaults = the look's chain values;
+  file weight 1080690 -> 900233 bytes. Gate: --parity enc0 160 checks
+  PASS; --parity all 170 checks PASS (bit-exact forwards).
+- All 8 user-facing groups (main + 7 preset wrappers) are assets in the
+  one deterministic "OpenDRT" catalog (uuid 68af1827, uuid5);
+  dist/blender_assets.cats.txt sidecar carries it; branch/fn/dgpw/vdot
+  groups stay unmarked; fake-user uniform on all 33 groups.
 - Build ~10 min (Blender node create/name is O(n) per node => ~O(n^2) at
   n~6k; acceptable).
 - libraries.write's default fake_user=False silently drops the fake-user
