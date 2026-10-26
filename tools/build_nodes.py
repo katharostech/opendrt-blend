@@ -227,7 +227,7 @@ SOCKET_TABLE = [
     ("Enable Contrast Low", "_tn_lcon_enable", "bool", "0x00000000", 0, 1, 1, "51"),
     ("Contrast Low", "_tn_lcon", "float", "0x00000000", 0.0, 3.0, 0.03, "52"),
     ("Contrast Low Width", "_tn_lcon_w", "float", "0x3F000000", 0.0, 2.0, 0.02, "53"),
-    ("Creative White", "_cwp", "float", 2.0, 0.0, 5.0, 1.0, "54,126"),
+    ("Creative White", "_cwp", "int", 2.0, 0.0, 5.0, 1.0, "54,126"),
     ("Creative White Limit", "_cwp_lm", "float", "0x3E800000", 0.0, 1.0, 0.01, "55,127"),
     ("Render Space Strength", "_rs_sa", "float", "0x3EB33333", 0.0, 0.6, 0.006, "56"),
     ("Render Space Weight R", "_rs_rw", "float", "0x3E800000", 0.0, 0.8, 0.008, "57"),
@@ -1535,7 +1535,7 @@ class Builder:
                 issues.append(f"label mismatch {ui}: doc '{name}' vs spec "
                               f"'{p.get('label')}'")
             mode = p["modes"].get("stickshift") or p["modes"].get("active")
-            if kind == "float":
+            if kind in ("float", "int"):
                 if ui in ("tn_Lp", "tn_Lg", "tn_gb", "pt_hdr"):
                     want = float(p["modes"]["active"]["default"])
                 elif ui == "_clamp":
@@ -1611,6 +1611,7 @@ class Builder:
                 s = iface.new_socket(
                     name, in_out="INPUT",
                     socket_type="NodeSocketBool" if kind == "bool"
+                    else "NodeSocketInt" if kind == "int"
                     else "NodeSocketFloat",
                     parent=p, description=tooltip + enum_note + rng)
                 if kind == "bool":
@@ -1621,8 +1622,22 @@ class Builder:
                         dv = int(default, 16) if isinstance(default, str) \
                             else int(default)
                     s.default_value = bool(dv)
+                elif kind == "int":
+                    # Enumerated index (DCTL combo; exposed as its resolved
+                    # 0..5 whitepoint index): integer socket so the knob
+                    # cannot take fractional values (D9's fractional-cwp
+                    # arm becomes unreachable - desired). Int links coerce
+                    # into the float COMPARE/LESS_THAN ladders + dgpw float
+                    # params implicitly (verified on the 5.2.3 wheel).
+                    intern = ui_to_internal(ui)
+                    if preset_vals is not None and intern in preset_vals:
+                        s.default_value = int(preset_vals[intern])
+                    else:
+                        s.default_value = int(default)
+                    s.min_value = int(mn)
+                    s.max_value = int(mx)
                 else:
-                    # FACTOR subtype: all float params carry fixed spec
+                    # FACTOR subtype: float params carry fixed spec
                     # min/max; subtype is UI-only (0.001-step slider, value
                     # not rescaled) - verified round-trip in 5.3 Beta with
                     # out-of-unit ranges (100..1000) unclamped.

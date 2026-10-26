@@ -314,8 +314,12 @@ re-measures; dgpw ≈90-115, contrast_high ≈20, hlg ≈60, pq ≈36].
 
 ## E. Socket table (69 inputs)
 
-Name = spec label (unique — verified). kind: check_box→Bool, slider_float→
-Float, enum (_cwp)→Float 0..5 — DCTL stickshift define maps _cwp DIRECTLY to
+Socket types per DCTL control: check_box→Bool, slider_float→Float,
+enum (_cwp)→**Int 0..5** (2026-10-26 user decision: integer socket for
+enum clarity; int links coerce into the float COMPARE/LESS_THAN
+ladders + dgpw float params implicitly - verified wheel+5.3; the D9
+fractional-cwp arm becomes structurally unreachable). DCTL
+stickshift define maps _cwp DIRECTLY to
 internal cwp with options D93..D50 and default 2 (DCTL 54); the preset-mode
 combo has idx 0 "USE LOOK PRESET" + 1..6 = D93..D50 (DCTL 126) — UI sugar,
 unreachable with look baked (Standard look's cwp = 2 = D65 = socket default;
@@ -342,7 +346,7 @@ min/max/step from the `_`-param defines → socket description.
 | Enable Contrast Low | _tn_lcon_enable | bool | 0 | 0/1 | 51 |
 | Contrast Low | _tn_lcon | float | 0.0 | 0..3/0.03 | 52 |
 | Contrast Low Width | _tn_lcon_w | float | 0.5 | 0..2/0.02 | 53 |
-| Creative White | _cwp | float | 2.0 (D65) | 0..5/1 | 54,126 |
+| Creative White | _cwp | int | 2.0 (D65) | 0..5/1 | 54,126 |
 | Creative White Limit | _cwp_lm | float | 0.25 | 0..1/0.01 | 55,127 |
 | Render Space Strength | _rs_sa | float | 0.3499999940395355 (0x3EB33333) | 0..0.6/0.006 | 56 |
 | Render Space Weight R | _rs_rw | float | 0.25 | 0..0.8/0.008 | 57 |

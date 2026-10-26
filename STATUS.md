@@ -293,12 +293,15 @@ Node-graph generation toolchain (decided, verified 2026-10):
   (phase A interface/default/name/R-14 audits; phase B smoke render; phase C
   `--parity enc0|all` compares against tools/dctl_shim/build_dctl_shim).
 - `dist/OpenDRT_v1.1.0.blend` - built artifact for user testing:
-  sha256 7c4e7474480d8cb72b294f56e64e186b4f41ced061cfd5033d3fd7e24dfab9ea
-  (33 node groups, size 899937; main 65 nodes / 735 links - the folded
+  sha256 3292524be8ad9b4540c507d829972badd8f5a6183bc1bfccabacee2fda8e3dbd
+  (33 node groups, size 899930; main 65 nodes / 735 links - the folded
   conversion; totals 3831 nodes / 7948 links; single libraries.write).
   Image socket description now exactly "Image in the scene linear working
   space." (2026-10-26 user decision; semantics unchanged - the fold-in
   'raw2xyz' convert + parity noise numbers above describe the math).
+- Creative White exposed as an INTEGER socket (NodeSocketInt 0..5, the
+  one DCTL combo param; 2026-10-26 user decision; parity numbers
+  identical, int links coerce into the float ladders).
   Preset nodes are THIN WRAPPERS: "OpenDRT 1.1 [look]" = GroupInput + one
   "base" instance of OpenDRT 1.1 Base + GroupOutput, inputs/outputs
   forwarded one-to-one, interface defaults = the look's chain values.

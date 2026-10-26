@@ -92,6 +92,7 @@ ins = [i for i in items if i.item_type == "SOCKET" and
 panels = [i for i in items if i.item_type == "PANEL"]
 floats = [i for i in ins if i.socket_type in ("FLOAT", "NodeSocketFloat")]
 bools = [i for i in ins if i.socket_type in ("BOOL", "NodeSocketBool")]
+ints = [i for i in ins if i.socket_type in ("INT", "NodeSocketInt")]
 colors_out = [i for i in outs
               if i.socket_type in ("COLOR", "NodeSocketColor")]
 check("input-count",
@@ -99,8 +100,12 @@ check("input-count",
            if i.socket_type in ("COLOR", "NodeSocketColor")]) == 1,
       f"{len([i for i in ins
               if i.socket_type in ('COLOR', 'NodeSocketColor')])}")
-check("param-count", len(floats) + len(bools) == 69,
-      f"floats={len(floats)} bools={len(bools)}")
+check("param-count", len(floats) + len(bools) + len(ints) == 69,
+      f"floats={len(floats)} bools={len(bools)} ints={len(ints)}")
+check("int-socket-is-cwp", len(ints) == 1
+      and ints[0].name == "Creative White"
+      and ints[0].min_value == 0 and ints[0].max_value == 5,
+      f"{[i.name for i in ints]}")
 check("output-count", len(colors_out) == 9, f"{len(colors_out)}")
 check("panel-count", len(panels) == 8, f"{len(panels)}")
 panel_names = [p.name for p in panels]
@@ -167,7 +172,8 @@ for look, vals in LOOKS.items():
     rng = {i.name: (i.min_value, i.max_value)
            for i in grp.interface.items_tree
            if i.item_type == "SOCKET" and i.in_out == "INPUT"
-           and i.socket_type in ("FLOAT", "NodeSocketFloat")}
+           and i.socket_type in
+           ("FLOAT", "NodeSocketFloat", "INT", "NodeSocketInt")}
     check(f"minmax:{look}:Contrast", rng.get("Contrast") == (1.0, 2.0),
           str(rng.get("Contrast")))
     check(f"minmax:{look}:Creative White", rng.get("Creative White") == (0.0, 5.0),
