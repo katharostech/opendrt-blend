@@ -5,26 +5,38 @@ Contract: docs/BUILDER_DESIGN.md (+ STATUS.md final decisions). Ground truth
 for math semantics: docs/PROBE_REPORT.md (measured Blender facts win over
 design-doc fallbacks) and spec/opendrt-v1.1.0.json (the IR).
 
-Emission (one CompositorNodeTree "OpenDRT v1.1.0", no nested node groups):
-  - interface: 1 input "Image" (NodeSocketColor = linear CIE XYZ D65, values
-    used as-is, no color-management conversion in-tree) + 69 parameter
-    sockets + 9 color outputs (one per display encoding; selection = which
-    output is linked; per-output lazy evaluation, PROBE_REPORT §2).
-  - shared cluster: SeparateColor at the Image entry + tonescale constraint
-    vars (src 943-960, "Tonescale Constraint (src 943-960)" frame), emitted
-    once; ts_p (948) + ts_dsc (953) are per-branch (design branch table).
-  - per branch: naive duplication of src 964..1210 ("b{B} region (src
-    964-1210)" frame + "branch tail (src 1158-1210)" frame over the display
-    finish); crv overlay pruned exactly per design §D.4; functions inlined
-    flat; matrices as flat 9x MUL + 6 ADD; literals cast to float32 at
-    emission (single-rounded IEEE f32; arithmetic via numpy float32).
-  - node naming b{B} r{src}#{k} (B = branch 0..8, "bS" = shared; k = 1-based
-    per-statement node index); NodeFrame per inline function invocation named
-    "fn {fn} (src {fnsrc}) @ b{B} r{stmtsrc}".
-  - asset hygiene: asset_mark() + use_fake_user=True + provenance description
-    (spec sha256 + DCTL sha256 + branch count + socket count; NO timestamps);
-    written via bpy.data.libraries.write(compress=True, path_remap="NONE")
-    containing no other datablocks.
+Emission (user decision 2026-10-26: nested node groups; NO NodeFrames and
+NO node layout - the group interior is compiler output, not a reading aid):
+  - main tree "OpenDRT v1.1.0": interface = 1 input "Image" (NodeSocketColor
+    = linear CIE XYZ D65, values used as-is, no color-management conversion
+    in-tree) + 69 parameter sockets + 9 color outputs (one per display
+    encoding; selection = which output is linked; per-output lazy
+    evaluation, PROBE_REPORT §2); interior = SeparateColor at the Image
+    entry + tonescale cluster (src 943-960 emitted once; ts_p (948) and
+    ts_dsc (953) live inside the branch groups) + 9 CompositorNodeGroup
+    instances, one per encoding, each wired with the live vars it reads.
+  - per-encoding branch groups "OpenDRT b{enc}": src 964..1210 (crv overlay
+    pruned exactly per design §D.4) with branch-baked constants (tn_su,
+    display_gamut, eotf) + CombineColor -> one color output socket.
+  - fn groups "OpenDRT fn {name}" (bodies emitted ONCE; call sites are
+    CompositorNodeGroup instances with per-instance arg defaults): fns with
+    >= 2 static call sites reachable from the emitted regions, except
+    GROUP_EXEMPT (see below); vdot gets a dedicated 12-socket group;
+    display_gamut_whitepoint gets one group per baked gamut. Group arg
+    sockets are flat floats; float3 args/returns are .x/.y/.z sockets so
+    call sites keep the channel-tracked scalar chains with no boundary
+    Separate/Combine nodes.
+  - matrices as flat 9x MUL + 6 ADD (per-site instance defaults in the
+    vdot group); literals cast to float32 at emission (single-rounded IEEE
+    f32; arithmetic via numpy float32).
+  - naming: call-site nodes and branch-group interiors b{B} r{src}#{k}
+    (B = branch 0..8, "bS" = main tree; k = 1-based per-statement index);
+    fn-group interiors "g r{src}#{k}". No NodeFrames anywhere.
+  - asset hygiene: main group asset_mark() + use_fake_user=True + provenance
+    description (spec sha256 + DCTL sha256; NO timestamps); every emitted
+    tree written via bpy.data.libraries.write(compress=True,
+    path_remap="NONE"); never-instantiated groups removed with a note;
+    use_fake_user re-applied post-write (libraries.write drops it).
 
 Measured-semantics reconciliations (design doc + measurements; also printed
 by the build log):
@@ -88,6 +100,17 @@ TAIL_LO = 1158                             # "branch tail" frame start
 CRV_SKIP = {925, 930, 976, 1035, 1043, 1051, 1052, 1162, 1170, 1171, 1191,
             1199}                          # design §D.4 prune, by item src
 SHARED_TAG = "S"
+
+# Fns that do NOT become fn groups:
+#  - sdivf: one DIVIDE node is the whole body (a group would be bigger).
+#  - display_gamut_whitepoint: emitted as per-gamut variant groups instead
+#    (its ladder tables + back conversion are baked per display_gamut).
+#  - everything else here carries sqrt/ln inside gated arms: with live group
+#    args the gate would emit BOTH arms; a Blender untaken-arm NaN would
+#    contaminate the Mix (D3). hypotf*'s sqrt arg is a sum of squares
+#    (structurally safe), but the boring rule keeps the sites inline.
+GROUP_EXEMPT = {"sdivf", "display_gamut_whitepoint", "hypotf2", "hypotf3",
+                "compress_toe_quadratic", "compress_toe_cubic", "eotf_hlg"}
 
 E_F32 = np.float32(2.718281828459045)      # LOGARITHM natural base; see D2
 IDENTITY = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
@@ -407,13 +430,15 @@ class Builder:
         self.selection = spec["selection"]
         self.dead_fns = set(spec["reports"]["dead_functions"])
         self.dev_notes = []
-        self.tree = None
-        self.links = None
-        self.gout = None
-        self.kcount = {}
+        # group-emission context stack; [0] = the main tree. Each entry:
+        # {"tree", "links", "gout", "kcount", "prefix", "reads"}
+        self.ctx = []
+        self.fn_groups = {}     # name -> CompositorNodeTree (built once)
+        self.group_used = {}    # tree name -> # of instances made
+        self.all_trees = []
+        self.fn_ret_shape = {}
+        self.dgpw_variants = {}
         self.branch_stack = []
-        self.frame_stack = []
-        self.created = []
         self.socket_uses = {}
         self.socket_vars = {ui_to_internal(r[1]): r[0] for r in SOCKET_TABLE}
         # D3: keep eotf_hlg's always-computed arm finite (see D3 note)
@@ -449,6 +474,60 @@ class Builder:
                 "body": [tx(s) for s in fn["body"]]}
 
     # ------------------------------------------------------------------
+    # group-emission context: the builder emits into a stack of trees
+    # (main tree + per-fn groups + per-branch groups). Values that cross a
+    # group boundary are late-bound ("P", varname) heads: attaching one
+    # registers a group-input read; finalize_group_inputs() creates the
+    # interface sockets and wires them once the read set is exact.
+    # ------------------------------------------------------------------
+
+    def push_ctx(self, tree, prefix, out_sockets=()):
+        """Emit into `tree`. Creates GroupInput/Output nodes and the
+        return-side interface sockets (known up front)."""
+        self.all_trees.append(tree)
+        gout = tree.nodes.new("NodeGroupOutput")
+        gin = tree.nodes.new("NodeGroupInput")
+        for name, stype in out_sockets:
+            tree.interface.new_socket(name, in_out="OUTPUT",
+                                      socket_type=stype)
+        self.ctx.append({"tree": tree, "links": tree.links, "gout": gout,
+                         "gin": gin, "kcount": {}, "prefix": prefix,
+                         "reads": {}})
+
+    @property
+    def tree(self):
+        return self.ctx[-1]["tree"]
+    @property
+    def links(self):
+        return self.ctx[-1]["links"]
+
+    @property
+    def gout(self):
+        return self.ctx[-1]["gout"]
+
+    @property
+    def gin(self):
+        return self.ctx[-1]["gin"]
+
+
+    def pop_ctx(self):
+        if not self.ctx:
+            raise BuildError("internal: pop_ctx on empty context")
+        return self.ctx.pop()
+
+    def finalize_group_inputs(self):
+        """Late-bind ('P', var) reads: create input sockets + wire them."""
+        c = self.ctx[-1]
+        read_vars = list(c["reads"])
+        for var in read_vars:
+            c["tree"].interface.new_socket(var, in_out="INPUT",
+                                           socket_type="NodeSocketFloat")
+        for var, dsts in c["reads"].items():
+            for dst in dsts:
+                c["links"].new(c["gin"].outputs[var], dst)
+        return read_vars
+
+    # ------------------------------------------------------------------
     # constants + naming
     # ------------------------------------------------------------------
 
@@ -475,22 +554,20 @@ class Builder:
                    for i in range(3) for j in range(3))
 
     def next_k(self, stmt):
+        kc = self.ctx[-1]["kcount"]
         key = (self.branch_stack[-1] if self.branch_stack else SHARED_TAG,
                str(stmt.get("src", "?")), stmt.get("k"))
-        k = self.kcount.get(key, 0) + 1
-        self.kcount[key] = k
+        k = kc.get(key, 0) + 1
+        kc[key] = k
         return k
 
     def _mk(self, stmt, idname, label=None):
         node = self.tree.nodes.new(idname)
-        self.created.append(node)
-        tag = self.branch_stack[-1] if self.branch_stack else SHARED_TAG
         k = self.next_k(stmt)
-        node.name = f"b{tag} r{src_first(stmt.get('src', '0'))}#{k}"
+        node.name = (f"{self.ctx[-1]['prefix']} "
+                     f"r{src_first(stmt.get('src', '0'))}#{k}")
         if label:
             node.label = label
-        if self.frame_stack:
-            node.parent = self.frame_stack[-1]
         return node
 
     def attach(self, dst, head):
@@ -498,6 +575,8 @@ class Builder:
             v = head[1]
             dst.default_value = (float(v) if not isinstance(v, (list, tuple))
                                  else [float(x) for x in v])
+        elif head[0] == "P":
+            self.ctx[-1]["reads"].setdefault(head[1], []).append(dst)
         else:
             self.links.new(head[1], dst)
 
@@ -752,7 +831,7 @@ class Builder:
         return self.call_fn(env, op, kids, e, stmt)
 
     def emit_vdot_inline(self, kids, stmt):
-        """[vdot, m, v]: flat 9 MUL + 6 ADD (design §B)."""
+        """[vdot, m, v]; group body once (m as per-instance defaults)."""
         mk, vk = kids
         if not (isinstance(mk, tuple) and mk[0] == "m"):
             raise BuildError(
@@ -760,16 +839,56 @@ class Builder:
                 f"constant matrices only) (src {stmt.get('src')})")
         if self.is_identity(mk[1]):
             return vk
+        vt = self.fn_groups.get("vdot")
+        if vt is None:
+            return self.vdot_flat(kids, stmt)
+        gn = self._mk(stmt, "CompositorNodeGroup")
+        gn.node_tree = vt
+        self.group_used[vt.name] = self.group_used.get(vt.name, 0) + 1
+        for ri in range(3):
+            row = mk[1][ri]
+            for ci in range(3):
+                self.attach(gn.inputs[f"m{ri}{ci}"],
+                            ("c", np.float32(row[ci])))
+        for c in "xyz":
+            self.attach(gn.inputs[f"v.{c}"], self.comp_head(vk, c))
+        return {c: ("s", gn.outputs[f"out.{c}"]) for c in "xyz"}
+
+    def build_vdot_group(self):
+        """'OpenDRT fn vdot': 9 MUL + 6 ADD with matrix entries as inputs."""
+        tree = bpy.data.node_groups.new("OpenDRT fn vdot",
+                                        "CompositorNodeTree")
+        self.push_ctx(tree, "g",
+                      [(f"out.{c}", "NodeSocketFloat") for c in "xyz"])
+        rows = [[("P", f"m{i}{j}") for j in range(3)] for i in range(3)]
+        env = {c: ("P", f"v.{c}") for c in "xyz"}
+        out = self.vdot_flat(((None, rows), env),
+                             {"k": "vdot-group", "src": "323"})
+        for c in "xyz":
+            self.attach(self.gout.inputs[f"out.{c}"], out[c])
+        self.finalize_group_inputs()
+        self.pop_ctx()
+        self.fn_groups["vdot"] = tree
+        self.fn_ret_shape["vdot"] = tuple("xyz")
+
+    def vdot_flat(self, kids, stmt):
+        """Constant-matrix vdot: flat 9 MUL + 6 ADD (design §B).
+        mk[1] = 3 rows of 3 entries; entry = float (const) or head tuple."""
+        mk, vk = kids
         lbl = f"vdot (src {stmt.get('src')})"
+
+        def entry(x):
+            return x if isinstance(x, tuple) else ("c", np.float32(x))
+
         out = {}
         for ri, comp in enumerate("xyz"):
             row = mk[1][ri]
             t0 = self.math1(stmt, "MULTIPLY", self.comp_head(vk, "x"),
-                            ("c", np.float32(row[0])), lbl)
+                            entry(row[0]), lbl)
             t1 = self.math1(stmt, "MULTIPLY", self.comp_head(vk, "y"),
-                            ("c", np.float32(row[1])), lbl)
+                            entry(row[1]), lbl)
             t2 = self.math1(stmt, "MULTIPLY", self.comp_head(vk, "z"),
-                            ("c", np.float32(row[2])), lbl)
+                            entry(row[2]), lbl)
             s = self.math1(stmt, "ADD", t0, t1, lbl)
             s = self.math1(stmt, "ADD", s, t2, lbl)
             out[comp] = s
@@ -805,7 +924,9 @@ class Builder:
         return self.call_fn(env, op, kids, e, stmt)
 
     # ------------------------------------------------------------------
-    # user functions inlined flat, each invocation inside a NodeFrame (§C)
+    # user functions: emitted once per fn into a group tree; call sites
+    # instantiate CompositorNodeGroup nodes. Fns in GROUP_EXEMPT (or with
+    # <2 call sites) stay inlined, preserving per-site emission exactly.
     # ------------------------------------------------------------------
 
     def call_fn(self, env, name, kids, e, stmt):
@@ -814,7 +935,41 @@ class Builder:
             return self.math1(stmt, "DIVIDE", kids[0], kids[1],
                               f"sdivf (src {stmt.get('src')})")
         if name == "display_gamut_whitepoint":
-            return self.emit_dgpw(env, kids, e, stmt)
+            return self.emit_dgpw_call(env, kids, e, stmt)
+        fg = self.fn_groups.get(name)
+        if fg is not None:
+            return self.inst_fn(name, fg, kids, stmt)
+        return self.inline_fn(env, name, kids, e, stmt)
+
+    def inst_fn(self, name, fgtree, kids, stmt):
+        """Group-instance call: wire arg sockets, return `out` head(s)."""
+        fn = self.functions[name]
+        args = fn.get("args", [])
+        if len(args) != len(kids):
+            raise BuildError(
+                f"unmappable IR: arity mismatch calling {name} "
+                f"(src {stmt.get('src')})")
+        gn = self._mk(stmt, "CompositorNodeGroup")
+        gn.node_tree = fgtree
+        self.group_used[fgtree.name] = self.group_used.get(fgtree.name, 0) + 1
+        for arg, kid in zip(args, kids):
+            nm, t = arg["name"], arg["type"]
+            if t in ("float2", "float3"):
+                if not isinstance(kid, dict):
+                    raise BuildError(
+                        f"unmappable IR: arg '{nm}' of {name} expects a "
+                        f"vector (src {stmt.get('src')})")
+                for c in ("xy" if t == "float2" else "xyz"):
+                    self.attach(gn.inputs[f"{nm}.{c}"], kid[c])
+            else:
+                self.attach(gn.inputs[nm], kid)
+        shape = self.fn_ret_shape[name]
+        if shape == "float":
+            return ("s", gn.outputs["out"])
+        return {c: ("s", gn.outputs[f"out.{c}"]) for c in shape}
+
+    def inline_fn(self, env, name, kids, e, stmt):
+        """Pre-groups inline path (the original per-site emitter)."""
         fn = self.functions.get(name)
         if fn is None:
             raise BuildError(
@@ -829,23 +984,158 @@ class Builder:
             raise BuildError(
                 f"unmappable IR: arity mismatch calling {name} "
                 f"(src {stmt.get('src')})")
-        tag = self.branch_stack[-1] if self.branch_stack else SHARED_TAG
-        frame = self.tree.nodes.new("NodeFrame")
-        frame.name = frame.label = (
-            f"fn {name} (src {fn['src']}) @ b{tag} "
-            f"r{src_first(stmt.get('src', '0'))}")
-        frame.parent = self.frame_stack[-1] if self.frame_stack else None
         fenv = {arg["name"]: val for arg, val in zip(args, kids)}
-        self.frame_stack.append(frame)
         scope = Scope("fn")
         self.emit_stmt_list(fn["body"], fenv, scope)
-        self.frame_stack.pop()
         ret = fenv.get("@ret", None)
         if ret is None or ret is UNASSIGNED:
             raise BuildError(
                 f"unmappable IR: inlined '{name}' has no return value "
                 f"(src {stmt.get('src')})")
         return ret
+
+    # ------------------------------------------------------------------
+    # fn group pre-builds: plan (static call-site counts from the emitted
+    # regions), then emit every planned body ONCE into its own tree.
+    # ------------------------------------------------------------------
+
+    def fn_calls_in_body(self, body):
+        """Static IR call counts inside one statement list (no emission)."""
+        acc = {}
+
+        def walk_expr(e):
+            if isinstance(e, list):
+                if e and isinstance(e[0], str) and e[0] in self.functions:
+                    acc[e[0]] = acc.get(e[0], 0) + 1
+                for a in e[1:]:
+                    walk_expr(a)
+            elif isinstance(e, dict):
+                for v in (e.get("inits") or {}).values():
+                    walk_expr(v)
+                for br in e.get("branches") or []:
+                    walk_expr(br["cond"])
+                    for st in br["body"]:
+                        walk_stmt(st)
+                if e.get("els") is not None:
+                    for st in e["els"]:
+                        walk_stmt(st)
+                if e.get("expr") is not None:
+                    walk_expr(e["expr"])
+                for op in e.get("ops") or []:
+                    walk_expr(op["expr"])
+
+        def walk_stmt(st):
+            k = st["k"]
+            if k == "declare":
+                for v in (st.get("inits") or {}).values():
+                    walk_expr(v)
+            elif k == "assign":
+                for op in st["ops"]:
+                    walk_expr(op["expr"])
+            elif k == "return":
+                if st.get("expr") is not None:
+                    walk_expr(st["expr"])
+            elif k == "if":
+                walk_expr(st)
+
+        for st in body:
+            walk_stmt(st)
+        return acc
+
+    def plan_fn_groups(self):
+        """fn name -> static call count (>= 2), reachable from the emitted
+        regions, excluding GROUP_EXEMPT. May over-count (a site statically
+        pruned at emission); unused groups are removed after the build."""
+        region_counts = {}
+        for st in self.pipeline:
+            src = src_first(st.get("src", "0"))
+            if not (src in CLUSTER_SRC or BRANCH_LO <= src <= BRANCH_HI):
+                continue
+            if is_crv_stmt(st):
+                continue
+            for name, cnt in self.fn_calls_in_body([st]).items():
+                region_counts[name] = region_counts.get(name, 0) + cnt
+        counts = dict(region_counts)
+        queue = [n for n in region_counts
+                 if n in self.functions and n not in self.dead_fns]
+        visited = set(queue)
+        while queue:
+            name = queue.pop()
+            for sub, cnt in self.fn_calls_in_body(
+                    self.functions[name]["body"]).items():
+                counts[sub] = counts.get(sub, 0) + cnt
+                if (sub in self.functions and sub not in visited and
+                        sub not in self.dead_fns):
+                    visited.add(sub)
+                    queue.append(sub)
+        return {n: c for n, c in counts.items()
+                if c >= 2 and n in self.functions and n not in self.dead_fns
+                and n not in GROUP_EXEMPT and n != "vdot"}
+
+    def build_fn_group(self, name):
+        """Emit one fn body into 'OpenDRT fn {name}'; args late-bound."""
+        if name in self.fn_groups:
+            raise BuildError(f"internal: fn group '{name}' built twice")
+        fn = self.functions[name]
+        if name in self.dead_fns:
+            raise BuildError(f"unmappable IR: dead function '{name}' grouped")
+        rets = fn.get("returns", "float")
+        if rets == "float":
+            out_sockets = [("out", "NodeSocketFloat")]
+            shape = "float"
+        elif rets == "float2":
+            out_sockets = [(f"out.{c}", "NodeSocketFloat") for c in "xy"]
+            shape = tuple("xy")
+        elif rets == "float3":
+            out_sockets = [(f"out.{c}", "NodeSocketFloat") for c in "xyz"]
+            shape = tuple("xyz")
+        else:
+            raise BuildError(
+                f"unmappable IR: fn '{name}' returns '{rets}', not grouped")
+        tree = bpy.data.node_groups.new(f"OpenDRT fn {name}",
+                                        "CompositorNodeTree")
+        self.fn_ret_shape[name] = shape
+        self.push_ctx(tree, "g", out_sockets)
+        fenv = {}
+        for a in fn.get("args", []):
+            t, nm = a["type"], a["name"]
+            if t == "float3":
+                fenv[nm] = {c: ("P", f"{nm}.{c}") for c in "xyz"}
+            elif t == "float2":
+                fenv[nm] = {c: ("P", f"{nm}.{c}") for c in "xy"}
+            else:
+                fenv[nm] = ("P", nm)
+        scope = Scope("fn")
+        self.emit_stmt_list(fn["body"], fenv, scope)
+        ret = fenv.get("@ret", None)
+        if ret is None or ret is UNASSIGNED:
+            self.pop_ctx()
+            raise BuildError(f"unmappable IR: fn '{name}' has no return")
+        self.attach_fn_ret(fn, ret, name)
+        self.finalize_group_inputs()
+        self.pop_ctx()
+        self.fn_groups[name] = tree
+
+    def attach_fn_ret(self, fn, ret, name):
+        """Wire the fn's @ret head(s) to the group's output interface."""
+        rets = fn.get("returns", "float")
+        try:
+            if rets == "float":
+                if isinstance(ret, dict) or (isinstance(ret, tuple) and
+                                             ret[0] == "m"):
+                    raise BuildError(
+                        f"unmappable IR: fn '{name}' returns scalar")
+                self.attach(self.gout.inputs["out"], ret)
+            else:
+                if not isinstance(ret, dict):
+                    raise BuildError(
+                        f"unmappable IR: fn '{name}' must return the vector")
+                for c in "xyz" if rets == "float3" else "xy":
+                    if c in ret:
+                        self.attach(self.gout.inputs[f"out.{c}"], ret[c])
+        except BuildError:
+            raise
+
 
     # ------------------------------------------------------------------
     # statement walking (§C)
@@ -1094,26 +1384,53 @@ class Builder:
     # display_gamut_whitepoint inline (§B.6)
     # ------------------------------------------------------------------
 
-    def emit_dgpw(self, env, kids, e, stmt):
-        """[dgpw, rgb, tsn, cwp_lm, display_gamut, cwp]; gamut is baked."""
+    def emit_dgpw_call(self, env, kids, e, stmt):
+        """[dgpw, ...]: fold the baked gamut, call its variant group."""
         f_g = self.fold(env, e[4])
         if f_g is None or f_g[0] != "c":
             raise BuildError(
                 "unmappable IR: dgpw display_gamut is not a baked constant "
                 f"(src {stmt.get('src')})")
         gamut = int(float(f_g[1]))
-        rgb_h = kids[0]
-        tsn_h = kids[1]
-        cwplm_h = kids[2]
-        cwp_h = kids[4]
+        vt = self.dgpw_variants.get(gamut)
+        if vt is None:
+            raise BuildError(
+                f"unmappable IR: no dgpw variant group for gamut {gamut}")
+        gn = self._mk(stmt, "CompositorNodeGroup")
+        gn.node_tree = vt
+        self.group_used[vt.name] = self.group_used.get(vt.name, 0) + 1
+        for c in "xyz":
+            self.attach(gn.inputs[f"rgb.{c}"], self.comp_head(kids[0], c))
+        self.attach(gn.inputs["tsn"], kids[1])
+        self.attach(gn.inputs["cwp_lm"], kids[2])
+        self.attach(gn.inputs["cwp"], kids[4])
+        return {c: ("s", gn.outputs[f"out.{c}"]) for c in "xyz"}
+
+    def build_dgpw_variants(self, gamuts):
+        for gamut in sorted(gamuts):
+            name = f"OpenDRT fn display_gamut_whitepoint g{gamut}"
+            tree = bpy.data.node_groups.new(name, "CompositorNodeTree")
+            self.push_ctx(tree, "g",
+                          [(f"out.{c}", "NodeSocketFloat") for c in "xyz"])
+            env = {"rgb": {c: ("P", f"rgb.{c}") for c in "xyz"},
+                   "tsn": ("P", "tsn"),
+                   "cwp_lm": ("P", "cwp_lm"),
+                   "cwp": ("P", "cwp")}
+            stmt = {"k": "call", "src": "593"}
+            out = self.emit_dgpw_body(env, gamut, stmt)
+            for c in "xyz":
+                self.attach(self.gout.inputs[f"out.{c}"], out[c])
+            self.finalize_group_inputs()
+            self.pop_ctx()
+            self.dgpw_variants[gamut] = tree
+
+    def emit_dgpw_body(self, env, gamut, stmt):
+        """dgpw interior; rgb/tsn/cwp_lm/cwp from env; gamut baked per variant."""
+        rgb_h = env["rgb"]
+        tsn_h = env["tsn"]
+        cwplm_h = env["cwp_lm"]
+        cwp_h = env["cwp"]
         src = stmt.get("src", "?")
-        tag = self.branch_stack[-1] if self.branch_stack else SHARED_TAG
-        frame = self.tree.nodes.new("NodeFrame")
-        frame.name = frame.label = (
-            f"fn display_gamut_whitepoint (src 593-732) @ b{tag} "
-            f"r{src_first(src)}")
-        frame.parent = self.frame_stack[-1] if self.frame_stack else None
-        self.frame_stack.append(frame)
         label = "display_gamut_whitepoint (src 593-732)"
 
         def vdot(mrows, v):
@@ -1196,7 +1513,6 @@ class Builder:
         out = {c: self.math1(stmt, "MULTIPLY", rgb[c], f3,
                              label=f"cwp_norm (src {src})")
                for c in "xyz"}
-        self.frame_stack.pop()
         return out
 
     # ------------------------------------------------------------------
@@ -1310,11 +1626,12 @@ class Builder:
     # graph build
     # ------------------------------------------------------------------
 
-    def separate_image_and_env(self, gin):
+    def separate_image_and_env(self):
         """Shared interior head: SeparateColor at the Image entry (B-R-5)."""
         base = self.pipeline[0]  # declare rgb f3(p_R,p_G,p_B), src 739
         sep = self._mk(base, "CompositorNodeSeparateColor",
                        "rgb = (p_R, p_G, p_B) via SeparateColor (src 739)")
+        gin = self.gin
         self.links.new(gin.outputs["Image"], sep.inputs["Image"])
         env = {
             "rgb": {"x": ("s", sep.outputs["Red"]),
@@ -1329,7 +1646,7 @@ class Builder:
             env[var] = ("s", gin.outputs[sock])
         return env
 
-    def build_graph(self, outs, gin):
+    def build_graph(self):
         enc_entries = sorted(self.selection["display_encoding"]["entries"],
                              key=lambda x: x["index"])
         encs = [(e["index"], e["values"]["tn_su"],
@@ -1344,84 +1661,114 @@ class Builder:
                    and src_first(st.get("src", "0")) not in
                    CLUSTER_PER_BRANCH]
         print("PHASE: cluster", flush=True)
-        shared = self.separate_image_and_env(gin)
-        frame = self.tree.nodes.new("NodeFrame")
-        frame.name = frame.label = "Tonescale Constraint (src 943-960)"
-        self.frame_stack.append(frame)
+        shared = self.separate_image_and_env()
         self.emit_stmt_list(cluster, shared, Scope("cluster"))
-        self.frame_stack.pop()
+        cluster_vars = [v for v in shared
+                        if v not in self.socket_vars and v != "rgb" and
+                        v not in ("in_gamut", "in_oetf", "crv_enable",
+                                  "in_to_xyz")]
 
-        # ---- per-branch naive duplication of src 964..1210 ----
+        # ---- per-encoding branch groups, instantiated in the main tree ----
         for enc, tn_su, gamut, eotf in encs:
-            frame = self.tree.nodes.new("NodeFrame")
-            frame.name = frame.label = f"b{enc} region (src 964-1210)"
-            self.frame_stack.append(frame)
-            env = dict(shared)
-            env["tn_su"] = ("c", np.float32(tn_su))
-            env["display_gamut"] = ("c", np.float32(gamut))
-            env["eotf"] = ("c", np.float32(eotf))
-            # per-branch ts_p (948): DIVIDE(tn_con, f32(1.0 + f32(su)*0.05f))
-            div = f32_lit("add", 1.0,
-                          (np.float32(tn_su) * np.float32(0.05)).item())
-            st_p = {"k": "ts_p-anchor", "src": "948"}
-            self.socket_uses["tn_con"] = self.socket_uses.get("tn_con", 0) + 1
-            env["ts_p"] = self.math1(
-                st_p, "DIVIDE",
-                ("s", gin.outputs[self.socket_vars["tn_con"]]),
-                ("c", np.float32(div)), label="ts_p (src 948)")
-            # per-branch ts_dsc (953): 0.01 (PQ), 0.1 (HLG), else 100/tn_Lp
-            st_d = {"k": "ts_dsc-anchor", "src": "953"}
-            if eotf == 4:
-                env["ts_dsc"] = ("c", np.float32(f32_from_hex("0x3C23D70A")))
-            elif eotf == 5:
-                env["ts_dsc"] = ("c", np.float32(f32_from_hex("0x3DCCCCCD")))
-            else:
-                self.socket_uses["tn_Lp"] = \
-                    self.socket_uses.get("tn_Lp", 0) + 1
-                env["ts_dsc"] = self.math1(
-                    st_d, "DIVIDE", ("c", np.float32(100.0)),
-                    ("s", gin.outputs[self.socket_vars["tn_Lp"]]),
-                    label="ts_dsc (src 953)")
-            branch_stmts = [st for st in self.pipeline
-                            if BRANCH_LO <= src_first(st.get("src", "0")) <=
-                            BRANCH_HI and not is_crv_stmt(st)]
-            main_stmts = [st for st in branch_stmts
-                          if src_first(st.get("src", "0")) < TAIL_LO]
-            tail_stmts = [st for st in branch_stmts
-                          if src_first(st.get("src", "0")) >= TAIL_LO]
-            print(f"  b{enc} main {len(main_stmts)} stmts", flush=True)
-            self.emit_stmt_list(main_stmts, env, Scope("branch"))
-            tail_frame = self.tree.nodes.new("NodeFrame")
-            tail_frame.name = tail_frame.label = (
-                f"branch tail (src {TAIL_LO}-1210)")
-            tail_frame.parent = frame
-            self.frame_stack.append(tail_frame)
-            self.emit_stmt_list(tail_stmts, env, Scope("tail"))
-            self.frame_stack.pop()
-            self.frame_stack.pop()
-            ret = env.get("@ret")
-            if ret is None or ret is UNASSIGNED:
-                raise BuildError(f"branch {enc}: no return value")
-            if not isinstance(ret, dict):
-                raise BuildError(f"branch {enc}: return is not a vector")
-            cc = self._mk({"k": "combine", "src": "1210"},
-                          "CompositorNodeCombineColor",
-                          f"return rgb (src 1210)")
-            cc.mode = "RGB"
-            self.attach(cc.inputs["Red"], ret["x"])
-            self.attach(cc.inputs["Green"], ret["y"])
-            self.attach(cc.inputs["Blue"], ret["z"])
-            cc.inputs["Alpha"].default_value = 1.0
-            self.links.new(cc.outputs[0], self.gout.inputs[OUTPUTS[enc][0]])
+            tree, in_vars = self.build_branch_group(
+                enc, tn_su, gamut, eotf, cluster_vars)
+            gn = self._mk({"k": "branch", "src": "964"},
+                          "CompositorNodeGroup")
+            gn.node_tree = tree
+            self.group_used[tree.name] = self.group_used.get(tree.name, 0) + 1
+            for var in in_vars:
+                self.attach(gn.inputs[var], self.main_head(shared, var))
+            self.links.new(gn.outputs["out"],
+                           self.gout.inputs[OUTPUTS[enc][0]])
+
+    def build_branch_group(self, enc, tn_su, gamut, eotf, cluster_vars):
+        """One CompositorNodeTree per encoding; live vars late-bound.
+        Returns (tree, interface input var names in registration order)."""
+        tree = bpy.data.node_groups.new(f"OpenDRT b{enc}",
+                                        "CompositorNodeTree")
+        self.all_trees.append(tree)
+        self.branch_stack.append(enc)
+        self.push_ctx(tree, f"b{enc}", [("out", "NodeSocketColor")])
+        env = {
+            "rgb": {c: ("P", f"rgb.{c}") for c in "xyz"},
+            "in_gamut": ("c", np.float32(0.0)),    # XYZ (baked identity)
+            "in_oetf": ("c", np.float32(0.0)),     # Linear (baked)
+            "crv_enable": ("c", np.float32(0.0)),  # overlay pruned
+            "in_to_xyz": ("m", IDENTITY),          # baked (design §D.1)
+            "tn_su": ("c", np.float32(tn_su)),
+            "display_gamut": ("c", np.float32(gamut)),
+            "eotf": ("c", np.float32(eotf)),
+        }
+        for var in self.socket_vars:
+            env[var] = ("P", var)
+        for var in cluster_vars:
+            env[var] = ("P", var)
+        # per-branch ts_p (948): DIVIDE(tn_con, f32(1.0 + f32(su)*0.05f))
+        div = f32_lit("add", 1.0,
+                      (np.float32(tn_su) * np.float32(0.05)).item())
+        st_p = {"k": "ts_p-anchor", "src": "948"}
+        self.socket_uses["tn_con"] = self.socket_uses.get("tn_con", 0) + 1
+        env["ts_p"] = self.math1(
+            st_p, "DIVIDE", env["tn_con"],
+            ("c", np.float32(div)), label="ts_p (src 948)")
+        # per-branch ts_dsc (953): 0.01 (PQ), 0.1 (HLG), else 100/tn_Lp
+        st_d = {"k": "ts_dsc-anchor", "src": "953"}
+        if eotf == 4:
+            env["ts_dsc"] = ("c", np.float32(f32_from_hex("0x3C23D70A")))
+        elif eotf == 5:
+            env["ts_dsc"] = ("c", np.float32(f32_from_hex("0x3DCCCCCD")))
+        else:
+            self.socket_uses["tn_Lp"] = \
+                self.socket_uses.get("tn_Lp", 0) + 1
+            env["ts_dsc"] = self.math1(
+                st_d, "DIVIDE", ("c", np.float32(100.0)),
+                env["tn_Lp"], label="ts_dsc (src 953)")
+        branch_stmts = [st for st in self.pipeline
+                        if BRANCH_LO <= src_first(st.get("src", "0")) <=
+                        BRANCH_HI and not is_crv_stmt(st)]
+        main_stmts = [st for st in branch_stmts
+                      if src_first(st.get("src", "0")) < TAIL_LO]
+        tail_stmts = [st for st in branch_stmts
+                      if src_first(st.get("src", "0")) >= TAIL_LO]
+        print(f"  b{enc} main {len(main_stmts)} stmts", flush=True)
+        self.emit_stmt_list(main_stmts, env, Scope("branch"))
+        self.emit_stmt_list(tail_stmts, env, Scope("tail"))
+        ret = env.get("@ret")
+        if ret is None or ret is UNASSIGNED:
+            raise BuildError(f"branch {enc}: no return value")
+        if not isinstance(ret, dict):
+            raise BuildError(f"branch {enc}: return is not a vector")
+        cc = self._mk({"k": "combine", "src": "1210"},
+                      "CompositorNodeCombineColor",
+                      f"return rgb (src 1210)")
+        cc.mode = "RGB"
+        self.attach(cc.inputs["Red"], ret["x"])
+        self.attach(cc.inputs["Green"], ret["y"])
+        self.attach(cc.inputs["Blue"], ret["z"])
+        cc.inputs["Alpha"].default_value = 1.0
+        self.links.new(cc.outputs[0], self.gout.inputs["out"])
+        in_vars = self.finalize_group_inputs()
+        self.pop_ctx()
+        self.branch_stack.pop()
+        return tree, in_vars
+
+    @staticmethod
+    def main_head(env, var):
+        """Resolve a deferred group-input var against the main-tree env."""
+        if "." in var:
+            base, comp = var.split(".", 1)
+            if isinstance(env.get(base), dict) and comp in env[base]:
+                return env[base][comp]
+        if var in env:
+            return env[var]
+        raise BuildError(
+            f"unmappable IR: branch input '{var}' unresolvable in the "
+            f"main tree")
 
     # ------------------------------------------------------------------
     # layout + audits + write
     # ------------------------------------------------------------------
 
-    def layout(self):
-        """Deterministic layout; NodeFrame containers auto-fit children."""
-        for i, n in enumerate(self.created):
-            n.location = (300 + (i // 40) * 240 - 600, -(i % 40) * 80 + 500)
 
     def audit(self):
         issues = []
@@ -1435,23 +1782,27 @@ class Builder:
                     f"parameter '{var}' is exposed but unread by the "
                     "transform (defunct in DCTL v1.1.0; socket kept per "
                     "design §E)")
-        # R-14: no Color (RGBA) socket may feed Math / float-Mix A,B,Factor
-        for lk in self.tree.links:
-            fst = lk.from_socket.type
-            tnode = lk.to_node.bl_idname
-            if fst == "RGBA" and tnode == "ShaderNodeMath":
-                issues.append(f"color feeds math: {lk.to_node.name}")
-            if fst == "RGBA" and tnode == "ShaderNodeMix":
-                issues.append(f"color feeds mix-float: {lk.to_node.name}")
+        # R-14 (all trees): no Color (RGBA) socket may feed Math / float-Mix
+        for tree in self.all_trees:
+            for lk in tree.links:
+                fst = lk.from_socket.type
+                tnode = lk.to_node.bl_idname
+                if fst == "RGBA" and tnode == "ShaderNodeMath":
+                    issues.append(f"color feeds math: {tree.name}."
+                                  f"{lk.to_node.name}")
+                if fst == "RGBA" and tnode == "ShaderNodeMix":
+                    issues.append(f"color feeds mix-float: {tree.name}."
+                                  f"{lk.to_node.name}")
+            names = [n.name for n in tree.nodes if "#" in n.name]
+            if len(names) != len(set(names)):
+                issues.append(f"duplicate node names in tree '{tree.name}'")
+        main_tree = self.ctx[0]["tree"]
         for name, _ in OUTPUTS:
-            got = len([l for l in self.tree.links
+            got = len([l for l in main_tree.links
                        if l.to_node.bl_idname == "NodeGroupOutput" and
                        l.to_socket.name == name])
             if got != 1:
                 issues.append(f"output '{name}' fed {got} times")
-        names = [n.name for n in self.tree.nodes if "#" in n.name]
-        if len(names) != len(set(names)):
-            issues.append("duplicate node names (Blender auto-suffix)")
         return issues
 
 
@@ -1474,23 +1825,36 @@ def main(argv=None):
     print("PHASE: cross-check", flush=True)
     b.cross_check_inventory()
     ng = bpy.data.node_groups.new(GROUP_NAME, "CompositorNodeTree")
-    b.tree = ng
-    b.links = ng.links
+    b.push_ctx(ng, "bS")
     print("PHASE: interface", flush=True)
     b.build_interface()
-    b.gout = ng.nodes.new("NodeGroupOutput")
-    gin = ng.nodes.new("NodeGroupInput")
+    print("PHASE: fn-groups", flush=True)
+    plan = b.plan_fn_groups()
+    for name in plan:
+        b.build_fn_group(name)
+        print(f"  fn {name} group: {len(b.fn_groups[name].nodes)} nodes",
+              flush=True)
+    b.build_vdot_group()
+    enc_entries = sorted(spec["selection"]["display_encoding"]["entries"],
+                         key=lambda x: x["index"])
+    b.build_dgpw_variants(
+        {int(e["values"]["display_gamut"]) for e in enc_entries})
     print("PHASE: graph", flush=True)
-    b.build_graph(None, gin)
-    print("PHASE: layout+audit", flush=True)
-    b.layout()
+    b.build_graph()
     issues = b.audit()
     print("PHASE: audited", flush=True)
     if issues:
         print("Error: audit failed: " + "; ".join(issues))
     for note in b.dev_notes:
         print(f"NOTE: {note}", flush=True)
-    # asset hygiene
+    all_trees = [c["tree"] for c in b.ctx] + list(b.fn_groups.values()) + \
+        list(b.dgpw_variants.values())
+    for tree in list(b.fn_groups.values()) + list(b.dgpw_variants.values()):
+        if b.group_used.get(tree.name, 0) == 0:
+            b.dev_notes.append(f"removing unused group '{tree.name}'")
+            bpy.data.node_groups.remove(tree)
+            all_trees.remove(tree)
+    # asset hygiene (main group only is the asset)
     ng.asset_mark()
     ng.use_fake_user = True
     ng.asset_data.description = (
@@ -1501,20 +1865,23 @@ def main(argv=None):
         f"sha256 {spec_sha}; source DCTL sha256 "
         f"{spec['provenance']['sha256']}; tag {spec['provenance']['tag']} "
         f"commit {spec['provenance']['commit'][:8]}.")
-    bpy.data.libraries.write(str(out_path), datablocks={ng}, compress=True,
-                             path_remap="NONE")
+    bpy.data.libraries.write(str(out_path), datablocks=set(all_trees),
+                             compress=True, path_remap="NONE")
     # libraries.write drops use_fake_user (measured: 5.3.0 Beta reads the
     # written file with the flag off) - re-apply it with a full re-save.
     bpy.ops.wm.open_mainfile(filepath=str(out_path))
-    g2 = bpy.data.node_groups[GROUP_NAME]
-    g2.use_fake_user = True
+    for g2 in bpy.data.node_groups:
+        g2.use_fake_user = True
     bpy.ops.wm.save_as_mainfile(filepath=str(out_path), compress=True,
                                 relative_remap=False)
     print(f"size={out_path.stat().st_size} bytes (fake-user applied "
           f"post-write)", flush=True)
     print(f"spec sha256 {spec_sha}", flush=True)
     print(f"DCTL sha256 {spec['provenance']['sha256']}", flush=True)
+    print(f"groups written: {len(bpy.data.node_groups)}", flush=True)
     return 0
+
+
 
 
 if __name__ == "__main__":

@@ -119,7 +119,27 @@ FLOOR CEIL TRUNC FRACT MODULO FLOORED_MODULO WRAP SNAP PINGPONG SINE COSINE
 TANGENT ARCSINE ARCCOSINE ARCTANGENT ARCTAN2 SINH COSH TANH RADIANS DEGREES;
 epsilon of COMPARE = 3rd input), ShaderNodeMix (FLOAT data_type),
 ShaderNodeSeparateColor (Image entry only), ShaderNodeCombineColor mode pinned
-'RGB' (9 outputs only), NodeFrame, NodeGroupInput, NodeGroupOutput.
+'RGB' (inside each branch group), CompositorNodeGroup (fn/branch instances),
+NodeGroupInput, NodeGroupOutput. Amendment 2026-10-26 (user decision):
+- NO NodeFrames and NO node layout anywhere (they were compiler-side
+  decoration; rt_smoke asserts zero frames).
+- Functions and encoding-branches are NESTED GROUPS, not inline code: one
+  fn group per function (bodies emitted once; >= 2 static call sites from
+  the emitted regions, minus GROUP_EXEMPT), one dgpw group per baked gamut,
+  a dedicated 12-input vdot group, and one group per encoding. See
+  STATUS.md "Build-wave status" for the full contract update.
+
+### B.0 Group-exemption rule (2026-10-26)
+
+`GROUP_EXEMPT = {sdivf, display_gamut_whitepoint, hypotf2, hypotf3,
+compress_toe_quadratic, compress_toe_cubic, eotf_hlg}` stays inline:
+sdivf's body is one DIVIDE (D1); dgpw is emitted as per-gamut variant
+groups (its ladders/back-matrices are baked per display_gamut); the rest
+carry sqrt/ln inside gated arms - with live group args the gate would emit
+BOTH arms and an untaken-arm NaN would contaminate the Mix (measured, D3).
+Group gates evaluate the same arm as today's pruned per-site gate (the
+instance arg default feeds the same value into a live compare); parity +
+bit-identical node-vs-node ramp proven 2026-10-26.
 
 **Rules (B-R):** (1) all-interior pipelines float — `attr` = builder channel
 tracking (vdot/f3 vectors are 3 scalar chains; zero Separate/Combine nodes
@@ -207,13 +227,17 @@ its two arm values against literal 1.0 (both arms always compute); return =
 CombineColor → that branch's group output socket. select/stage/
 skipped_preprocessor → 0 nodes.
 
-- **Naming (validator contract):** `node.name = "b{B} r{firstsrc}#{k}"` (e.g.
-  `b6 r1047#2`; k = per-statement expansion index). `node.label` = human text +
-  full src range, e.g. `"compress_hyperbolic_power (src 1047-1049)"`. Folded
-  constants get `#c{k}`. The per-stage validator parses name prefix → src & branch.
-- **Frames:** per inline function invocation (`"fn contrast_high (src 542-557) @
-  b3 r1041"`), per region (`"Tonescale Constraint (src 943-960)"`,
-  `"b{B} region (src 964-1210)"`, `"branch tail"`).
+- **Naming (validator contract, amended 2026-10-26):** call-site nodes and
+  branch-group interiors `node.name = "b{B} r{firstsrc}#{k}"` (e.g.
+  `b6 r1047#2`; k = 1-based per-statement expansion index, per-tree counter);
+  fn-group interiors `"g r{firstsrc}#{k}"`. `node.label` = human text + full
+  src range, e.g. `"compress_hyperbolic_power (src 1047-1049)"`. Folded
+  constants get `#c{k}` (D7). The per-stage validator parses the name prefix
+  → src (branch lives on the CALL-site node / branch group).
+- **Frames: REMOVED (user decision 2026-10-26)** - NodeFrames and node
+  layout are compiler-side decoration only; the consumer reads the group
+  from outside, and the r{src} names already localize any emission bug to
+  its DCTL statement. rt_smoke asserts zero frames.
 
 ## D. Exact tree composition
 

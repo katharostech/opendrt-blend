@@ -260,10 +260,10 @@ Node-graph generation toolchain (decided, verified 2026-10):
 
 1. ~~Review spec against the DCTL - user sign-off~~ DONE (BuilderDesign
    cross-checked 11 items, zero blocker queue).
-2. Node builder: `tools/build_nodes.py` per docs/BUILDER_DESIGN.md +
-   docs/PROBE_REPORT.md - WRITTEN, emits successfully (~10 min per build:
-   ~6.1k nodes / ~9.4k links / 1.02 MB .blend), but VALIDATION IS OPEN (see
-   "Build-wave status" below).
+2. Node builder: `tools/build_nodes.py` - done through TWO rewrite waves;
+   current: nested node-group emitter (see "Build-wave 2026-10-26 (perf)"
+   below), emits in ~13.5 s, VALIDATION still open (parity vs shim fails -
+   pre-existing, see below).
 3. Validation oracle setup (g++ DCTL shim) - DONE (tools/dctl_shim/shim.cpp +
    tests/golden + tools/verify_shim.py; goldens for enc0..enc8).
 4. Preset assets (wrapping node groups) + packaging.
@@ -302,46 +302,101 @@ Node-graph generation toolchain (decided, verified 2026-10):
 - Build ~10 min (Blender node create/name is O(n) per node => ~O(n^2) at
   n~6k; acceptable).
 - libraries.write DROPS use_fake_user: the 5.3 Beta reads the written file
-  with the flag off - the builder now re-opens the written file and
-  re-saves with use_fake_user=True (fix applied 2026-10-26, rebuild
-  pending verification).
-- Round-trip asserts (5.3.0 Beta reading build A): group exists/type/asset
-  OK; 8 panels + names + open/collapse states OK; 1+69+9 sockets OK;
-  9 output names in DCTL order OK; spot-checked exact-f32 defaults OK
-  (tn_Lp 100.0, Contrast 1.66(0x3FD47AE1), rs_bw, hs_b, HDR Purity 0.5,
-  Clamp 1, hcon/lcon-enable False = the Standard-look divergence);
-  output descriptions "Target display: ..." OK; region/cluster/tail frames
-  + 50+ fn frames OK; single GroupInput/Output, 1 SeparateColor,
-  9 CombineColor, no nested groups OK; naming `b{B} r{src}#{k}` OK;
-  no RGBA-into-math links (R-14) OK.
-- USER-VISIBLE BUG (next session's job): the node's render matches the
-  OCIO bake structurally but shows a strong pink/red cast
-  (/tmp/cmp/ocio.png vs /tmp/cmp/node1.png; view Raw; scene-linear ->
-  Convert Color Space "Linear CIE-XYZ D65" -> group -> sRGB output).
-  DECISIVE discriminator ready: node-vs-shim parity
-  (`pixi run check-nodes` phases B/C). If parity FAILS - debug emission
-  per stage (node labeling `r{src}` maps 1:1 to DCTL stage boundaries);
-  if parity PASSES - the difference is upstream (Convert Color Space vs
-  the OCIO bake's input conversion) or in the OCIO bake itself - compare
-  with zicklag/opendrt-1.1-ocio scripts.
+  with the flag off - the builder re-opens the written file and re-saves
+  with use_fake_user=True (verified 2026-10-26 on the nested build).
+
+### Build-wave 2026-10-26 (perf rework, nested groups; parity still open)
+
+The pink-cast session's open items were resolved or re-scoped:
+
+- **Determinism (was open #1): DONE.** Two builds to the SAME path are
+  byte-identical (sha256 56c588207cf9218864b208e9995b36ce4f5daf602d81d6
+  05536f5bda8b6e1be0). Builds to DIFFERENT paths still differ (as before;
+  likely path embedded in the file) - same-path identity is what CI needs.
+- **fake-user (was open #2): VERIFIED** - rt_smoke reads use_fake_user=True
+  on every written group.
+- **Smoke gate (was open #4): DONE** - pattern is 6 flat color bands so the
+  old `unique>100` expectation was wrong; now asserted uniq==6 + 3 sample
+  pixels + finite. rt_smoke also had two latent test bugs fixed: interface
+  iteration hit PANEL items with `.in_out` (must filter item_type first)
+  and compared socket_type against enum names ("FLOAT"/"COLOR") while 5.3
+  Beta returns ids ("NodeSocketFloat"/"NodeSocketColor").
+- **Pink cast (was open #3): still open, UNCHANGED by the rework.** The
+  node-vs-shim parity (enc0 ramp, 4096 pts) FAILS with max_abs 0.068973;
+  the old flat build and the new nested build render bit-identically
+  (enc1 ramp old-vs-new max_abs = 0.0), so the divergence pre-dates the
+  rework and lives inside the emission-vs-shim semantics or upstream.
+  Bisect by stage: the r{src} node names map 1:1 to DCTL stage boundaries,
+  and fn groups now give single places to tap.
+
+Nested-group perf rework (user plan, this wave):
+
+- ONE fn group per DCTL function (bodies emitted ONCE; call sites are
+  CompositorNodeGroup instances with per-instance arg defaults), one dgpw
+  group per baked gamut, a dedicated 12-input vdot group (m{ri}{ci} +
+  v.{xyz} inputs; per-instance matrix defaults), and ONE group per
+  display encoding ("OpenDRT b{enc}") holding its own region incl. ts_p
+  (948) / ts_dsc (953) and the CombineColor; the main tree is down to 64
+  nodes / 734 links and wires each branch group's live vars via its
+  interface.
+- NO NodeFrames and NO node layout anywhere (user decision; also removes
+  ~16% of the old build time; the r{src} names remain the stage mapping).
+- Cross-boundary values are late-bound "P" heads - a value needed inside a
+  group registers its consumers when attached and the builder creates the
+  group-input sockets + wires after the body emits (exact read sets, no
+  static pre-pass drift).
+- Fn-group gating safety: a group gate evaluates BOTH arms (Blender Mix
+  propagates untaken-arm NaN, D3) so fns carrying sqrt/ln inside gated
+  arms stay INLINE: GROUP_EXEMPT = {sdivf (D1), display_gamut_whitepoint
+  (variants), hypotf2, hypotf3, compress_toe_quadratic, compress_toe_cubic,
+  eotf_hlg}. Remaining gates evaluate the same arm as today (instance arg
+  default => same value into a live compare).
+- NUMBERS: build 13.5 s solo (was ~10 min => ~44x); 26 trees; total
+  3809 nodes / 7394 links (was 6126 / 9430); blend 792,360 B (was
+  1,020,094). Attribution of the OLD build (contended, 2192 s):
+  attach/links/new/name/default writes each ~52-85 ms per call (each bpy
+  write triggers an O(n) tree update at n~6k => O(n^2)); layout() alone
+  359 s; node.parent<-frame ~0 s. The tree split fixed the quadratic;
+  frames were a minor part.
+- rt_smoke phase A: ALL GREEN on this structure (26 trees, 9 branch
+  instances, 16 fn groups, zero frames, naming b*/g* per tree, spot f32
+  defaults exact, no RGBA-into-math in ANY tree (R-14 extended to all
+  trees + per-tree duplicate-name audits in the builder)).
 
 ### Open for the next session
 
-1. Rerun the two determinism builds (`pixi run build-nodes` twice; sha256
-   both) - note two builds to DIFFERENT paths already produced different
-   bytes (~all of the compressed stream; not just an embedded path), so if
-   same-path runs differ too, hunt the nondeterminism (per-ID asset UUID?
-   ID-block ordering?) before relying on byte-identity.
-2. Verify the fake-user re-save fix lands (load the rebuilt blend in 5.3
-   Beta; expect use_fake_user=True).
-3. Diagnose/fix the pink cast (user-visible bug above).
-4. Finish the smoke gate: finite + non-uniform + 3 sample pixels for the
-   enc-0 render (rt_smoke.py phase B - in flight at hand-off).
+1. Diagnose/fix the parity/pink-cast divergence (node vs compiled DCTL
+   shim, enc0 ramp max_abs 0.069) - stage bisect via r{src} labels; fn
+   groups make it cheap to tap an intermediate: add a temporary output to
+   a branch group or re-render a var through a wrapper.
+2. Rebuild the production artifact (`pixi run build-nodes` => dist/) when
+   convenient; rt_smoke already gates the new structure end-to-end.
+3. Optional: re-probe lazy evaluation THROUGH nested groups (9-linked vs
+   1-linked timing on the new structure; the flat-tree fact carried from
+   PROBE_REPORT should transfer since each output is fed by its own
+   branch-group instance, but it is now nested two levels).
+4. Optional perf levers if build time ever matters again (unlikely):
+   VectorMath packing of per-channel triples (bg-2 verified 3 Math -> 1
+   VectorMath; parity-safe for add/sub/mul/div), branch-group instance
+   parallelization (per-tree emission is context-isolated already).
 
 
-Legacy next-steps kept from before this wave are superseded by the list
-above; the validation plan (sections below) still applies for the Validate
-wave after node-vs-shim parity passes.
+
+UPDATE 2026-10-26 (perf wave, second session): the session-end note below
+is superseded - determinism (same-path), fake-user landing, and the smoke
+gate are verified above; dist/ still holds the older flat build A
+(sha256 150e76e3e72ebe6875524481563d99a4d03b7ae391b966ed5151fd57 04a9cf7d)
+while the nested-group builder lives in-tree (13.5 s builds); the pink
+cast remains the open item for the next session.
+
+Legacy session-end note (superseded): the session was cut before the
+rebuilds finished to free CPU for a builder-performance agent. State:
+dist/OpenDRT_v1.1.0.blend = the (older, audit-passing, fake-user-less)
+build A - kept untouched for user testing; the fake-user re-save fix +
+[pt_enable]-defunct warning change landed in-tree unverified at the time
+(now verified). tools/rt_smoke.py and the pixi tasks are committed. The
+validation plan (sections below) still applies for the Validate wave
+after node-vs-shim parity passes.
 
 
 Provenance rule: any committed spec JSON must carry tag + commit + source

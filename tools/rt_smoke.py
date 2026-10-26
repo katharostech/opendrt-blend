@@ -72,16 +72,20 @@ check("asset-marked", ng.asset_data is not None)
 check("fake-user", bool(ng.use_fake_user), f"use_fake_user={ng.use_fake_user}")
 
 items = list(ng.interface.items_tree)
-outs = [i for i in items if i.in_out == "OUTPUT" and
-        i.item_type == "SOCKET"]
-ins = [i for i in items if i.in_out == "INPUT" and
-       i.item_type == "SOCKET"]
+outs = [i for i in items if i.item_type == "SOCKET" and
+        i.in_out == "OUTPUT"]
+ins = [i for i in items if i.item_type == "SOCKET" and
+       i.in_out == "INPUT"]
 panels = [i for i in items if i.item_type == "PANEL"]
-floats = [i for i in ins if i.item_type == "SOCKET" and i.socket_type == "FLOAT"]
-bools = [i for i in ins if i.item_type == "SOCKET" and i.socket_type == "BOOL"]
-colors_out = [i for i in outs if i.socket_type == "COLOR"]
-check("input-count", len([i for i in ins if i.item_type == "SOCKET"]) == 1,
-      f"{len([i for i in ins if i.item_type == 'SOCKET'])}")
+floats = [i for i in ins if i.socket_type in ("FLOAT", "NodeSocketFloat")]
+bools = [i for i in ins if i.socket_type in ("BOOL", "NodeSocketBool")]
+colors_out = [i for i in outs
+              if i.socket_type in ("COLOR", "NodeSocketColor")]
+check("input-count",
+      len([i for i in ins
+           if i.socket_type in ("COLOR", "NodeSocketColor")]) == 1,
+      f"{len([i for i in ins
+              if i.socket_type in ('COLOR', 'NodeSocketColor')])}")
 check("param-count", len(floats) + len(bools) == 69,
       f"floats={len(floats)} bools={len(bools)}")
 check("output-count", len(colors_out) == 9, f"{len(colors_out)}")
@@ -138,32 +142,45 @@ check("image-desc", "Linear CIE XYZ D65" in (inp.description or ""),
 check("output-descs", all(o.description.startswith("Target display: ")
                           for o in outs))
 
-frames = [n for n in ng.nodes if n.bl_idname == "NodeFrame"]
-frame_labels = {f.label for f in frames}
-check("region-frame", "b0 region (src 964-1210)" in frame_labels)
-check("cluster-frame", "Tonescale Constraint (src 943-960)" in frame_labels)
-check("tail-frame", any(t.startswith("branch tail") for t in frame_labels))
-fn_frames = [t for t in frame_labels if t.startswith("fn ")]
-check("fn-frames", len(fn_frames) > 50, f"{len(fn_frames)} fn frames")
+# 2026-10-26 architecture: nested groups, NO NodeFrames, no fn inlining
+frame_count = sum(1 for g in bpy.data.node_groups
+                  for n in g.nodes if n.bl_idname == "NodeFrame")
+check("no-frames", frame_count == 0, f"{frame_count}")
+branch_trees = [g for g in bpy.data.node_groups
+                if g.name.startswith("OpenDRT b")]
+check("nine-branch-groups", len(branch_trees) == 9, f"{len(branch_trees)}")
+fn_trees = [g for g in bpy.data.node_groups
+            if g.name.startswith("OpenDRT fn ")]
+check("fn-groups", len(fn_trees) >= 10, f"{len(fn_trees)} fn groups")
 
 gins = [n for n in ng.nodes if n.bl_idname == "NodeGroupInput"]
 gouts = [n for n in ng.nodes if n.bl_idname == "NodeGroupOutput"]
 check("single-gin-gout", len(gins) == 1 and len(gouts) == 1)
-maths = [n for n in ng.nodes if n.bl_idname == "ShaderNodeMath"]
-mixes = [n for n in ng.nodes if n.bl_idname == "ShaderNodeMix"]
-seps = [n for n in ng.nodes if n.bl_idname == "CompositorNodeSeparateColor"]
-combs = [n for n in ng.nodes if n.bl_idname == "CompositorNodeCombineColor"]
-groups = [n for n in ng.nodes if n.bl_idname == "CompositorNodeGroup"]
-check("no-nested-groups", len(groups) == 0)
-check("one-separate", len(seps) == 1)
-check("nine-combines", len(combs) == 9)
+seps = sum(1 for g in bpy.data.node_groups
+           for n in g.nodes if n.bl_idname == "CompositorNodeSeparateColor")
+combs = sum(1 for g in bpy.data.node_groups
+            for n in g.nodes if n.bl_idname == "CompositorNodeCombineColor")
+branch_instances = [n for n in ng.nodes if n.bl_idname == "CompositorNodeGroup"]
+check("one-separate-total", seps == 1, f"{seps}")
+check("nine-combines-total", combs == 9, f"{combs}")
+check("nine-branch-instances", len(branch_instances) == 9, f"{len(branch_instances)}")
 
-# naming contract: b{B} r{src}#{k}
-bad = [n.name for n in maths + mixes
-       if not (n.name.startswith("b") and " r" in n.name and "#" in n.name)]
+# naming contract per tree: b{B} r{src}#{k} (call-site + branch interiors)
+# or "g r{src}#{k}" (fn-group interiors)
+bad = []
+tags = set()
+for g in bpy.data.node_groups:
+    for n in g.nodes:
+        nm = n.name
+        if nm.startswith("b") and " r" in nm and "#" in nm:
+            tags.add(nm.split(" ")[0])
+        elif nm.startswith("g r") and "#" in nm:
+            tags.add("g")
+        elif n.bl_idname not in ("NodeGroupInput", "NodeGroupOutput"):
+            bad.append(f"{g.name}/{nm}")
 check("naming-contract", len(bad) == 0, f"{len(bad)} bad names")
-tags = set(n.name.split(" ")[0] for n in maths + mixes)
 check("naming-branches", {f"b{i}" for i in range(9)} <= tags, str(sorted(tags)))
+
 
 # R-14: no RGBA links into math nodes
 bad_links = 0
@@ -174,8 +191,10 @@ for lk in ng.links:
     if lk.from_socket.type == "RGBA" and lk.to_node.bl_idname == "ShaderNodeMix":
         bad_links += 1
 check("no-color-to-math", bad_links == 0, f"{bad_links}")
-print(f"COUNTS nodes={len(ng.nodes)} links={len(ng.links)} "
-      f"frames={len(frames)} math={len(maths)} mix={len(mixes)}", flush=True)
+print(f"COUNTS main nodes={len(ng.nodes)} main links={len(ng.links)} "
+      f"trees={len(bpy.data.node_groups)} "
+      f"total_nodes={sum(len(g.nodes) for g in bpy.data.node_groups)} "
+      f"total_links={sum(len(g.links) for g in bpy.data.node_groups)}", flush=True)
 NODES_TOTAL = len(ng.nodes)
 LINKS_TOTAL = len(ng.links)
 
@@ -254,6 +273,7 @@ def render_group(enc_index, triplets, w, h, out_png=None, exr="/tmp/smoke.exr"):
     sc.compositing_node_group = tree
     tree.interface.new_socket("Image", in_out="OUTPUT",
                               socket_type="NodeSocketColor")
+    wr_out = tree.nodes.new("NodeGroupOutput")
     nimg = tree.nodes.new("CompositorNodeImage")
     nimg.image = img
     gnode = tree.nodes.new("CompositorNodeGroup")
@@ -281,9 +301,8 @@ vals = smoke.reshape(-1, 3)
 finite = bool(np.isfinite(vals).all())
 uniq = len(np.unique(vals.round(5), axis=0))
 check("smoke-finite", finite)
-check("smoke-nonuniform", uniq > 100, f"unique={uniq}")
-
-# 3 sample pixels: bottom-left (white), mid (0.18 gray band), sat-red band
+check("smoke-bands", uniq == 6,
+      f"unique={uniq} (pattern is 6 flat color bands)")
 def px_at(x, y):
     i = y * RES + x
     return tuple(round(float(v), 6) for v in vals[i])
