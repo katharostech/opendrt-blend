@@ -174,8 +174,8 @@ for look, vals in LOOKS.items():
           str(rng.get("Creative White")))
 
 inp = ins[0]
-check("image-desc", "Linear CIE XYZ D65" in (inp.description or ""),
-      (inp.description or "")[:60])
+check("image-desc", (inp.description or "") == "Image in the scene linear working space.",
+      (inp.description or "")[:80])
 
 # outputs have target-display descriptions
 check("output-descs", all(o.description.startswith("Target display: ")
@@ -239,6 +239,27 @@ branch_instances = [n for n in ng.nodes if n.bl_idname == "CompositorNodeGroup"]
 check("nine-branch-instances", len(branch_instances) == 9,
       f"{len(branch_instances)}")
 
+# folded conversion head: exactly one convert node in the Base tree, named
+# "raw2xyz", from = working space (scene_linear), to = CIE-XYZ D65, wired
+# GroupInput["Image"] -> convert -> SeparateColor
+cnvs = [n for n in ng.nodes
+        if n.bl_idname == "CompositorNodeConvertColorSpace"]
+cnv_ok = len(cnvs) == 1 and cnvs[0].name == "raw2xyz" and \
+    cnvs[0].to_color_space == "Linear CIE-XYZ D65" and \
+    cnvs[0].from_color_space == "scene_linear"
+cnv_wired = False
+if cnv_ok:
+    cnv = cnvs[0]
+    up = [lk for lk in ng.links if lk.to_node == cnv]
+    dn = [lk for lk in ng.links if lk.from_node == cnv]
+    cnv_wired = (len(up) == 1 and up[0].from_node.bl_idname == "NodeGroupInput"
+                 and up[0].from_socket.name == "Image"
+                 and len(dn) == 1
+                 and dn[0].to_node.bl_idname == "CompositorNodeSeparateColor")
+check("raw2xyz-node", cnv_ok and cnv_wired,
+      f"ok={cnv_ok} wired={cnv_wired if cnv_ok else '-'} "
+      f"from={cnvs[0].from_color_space if cnvs else '-'}")
+
 # naming contract per tree: b{B} r{src}#{k} (call-site + branch interiors)
 # or "g r{src}#{k}" (fn-group interiors)
 bad = []
@@ -252,6 +273,8 @@ for g in bpy.data.node_groups:
             tags.add("g")
         elif n.bl_idname == "CompositorNodeGroup" and nm == "base":
             pass  # preset wrapper: the single OpenDRT 1.1 Base instance
+        elif n.bl_idname == "CompositorNodeConvertColorSpace" and nm == "raw2xyz":
+            pass  # the folded working-space -> CIE-XYZ D65 head (main only)
         elif n.bl_idname not in ("NodeGroupInput", "NodeGroupOutput"):
             bad.append(f"{g.name}/{nm}")
 check("naming-contract", len(bad) == 0, f"{len(bad)} bad names")
@@ -422,13 +445,65 @@ def shim_run(enc, triplets, overrides=None):
 
 print("PHASE: parity", flush=True)
 
-# The shim is pinned to look=Standard; per-look parity reaches the preset
-# state via --param post-selection overrides with the look's chain values
-# (the same values the preset node's sockets default to - see builder).
+# The fold-in of the user's Convert Color Space step: Blender-side inputs
+# are now WORKING-SPACE values (converted in-tree to CIE-XYZ D65 by the
+# 'raw2xyz' node); the shim takes XYZ directly. Measure the node's runtime
+# matrix once (unit-patch render through a convert-only tree), assert its
+# linearity, and pre-convert the parity inputs with its inverse. The shim
+# is pinned to look=Standard; per-look parity reaches the preset state via
+# --param post-selection overrides with the look's chain values (the same
+# values the preset node's sockets default to - see builder).
+
+
+def measure_working_to_xyz():
+    """Render unit patches through a convert-only tree; return (M, M_inv)."""
+    tris = ((1, 0, 0), (0, 1, 0), (0, 0, 1), (0.25, 0.5, 0.75))
+    img = bpy.data.images.new("M", 4, 4, float_buffer=True)
+    img.colorspace_settings.name = "Non-Color"
+    px = []
+    for v in reversed(tris):
+        for _ in range(4):
+            px.extend(v + (1.0,))
+    img.pixels[:] = px
+    tree = bpy.data.node_groups.new("M", "CompositorNodeTree")
+    tree.interface.new_socket("Image", in_out="OUTPUT",
+                              socket_type="NodeSocketColor")
+    wr_out = tree.nodes.new("NodeGroupOutput")
+    sc = bpy.context.scene
+    sc.cycles.use_adaptive_sampling = False
+    sc.render.resolution_x, sc.render.resolution_y = 4, 4
+    sc.render.resolution_percentage = 100
+    sc.render.compositor_device = "CPU"
+    sc.render.compositor_precision = "FULL"
+    sc.render.use_compositing = True
+    nimg = tree.nodes.new("CompositorNodeImage")
+    nimg.image = img
+    cnv = tree.nodes.new("CompositorNodeConvertColorSpace")
+    cnv.from_color_space = "Linear Rec.709"
+    cnv.to_color_space = "Linear CIE-XYZ D65"
+    tree.links.new(nimg.outputs[0], cnv.inputs[0])
+    tree.links.new(cnv.outputs[0], wr_out.inputs[0])
+    sc.compositing_node_group = tree
+    sc.render.filepath = "/tmp/parity_m.exr"
+    bpy.ops.render.render(write_still=True)
+    im = bpy.data.images.load("/tmp/parity_m.exr")
+    im.colorspace_settings.name = "Non-Color"
+    w, h = im.size
+    buf = np.array(im.pixels[:], dtype=np.float32).reshape(h, w, 4)[:, 0, :3]
+    bpy.data.images.remove(im)
+    M = np.column_stack([buf[3], buf[2], buf[1]])  # bottom-up readback
+    resid = np.abs(M @ tris[3] - buf[0]).max()
+    check("parity-matrix-linear", float(resid) <= 1e-6,
+          f"max={float(resid):.3g}")
+    return M, np.linalg.inv(M)
+
+
+M_709_XYZ, M_XYZ_709 = measure_working_to_xyz()
 triplets = [(v, v, v) for v in [i / 4095 for i in range(4096)]]
+wrk_ramp = [(M_XYZ_709 @ t).astype(np.float32) for t in triplets]
 for look in LOOK_ORDER:
     exp = shim_run(0, triplets, overrides=LOOKS[look])
-    got = render_group(group_for(look), 0, triplets, 64, 64,
+    got = render_group(group_for(look), 0, wrk_ramp, 64, 64,
                        exr=f"/tmp/parity_{LOOK_ORDER.index(look)}.exr")
     d = np.abs(exp.reshape(-1, 3) - got.reshape(-1, 3))
     print(f"PARITY {look} enc0 ramp4096 max_abs={d.max():.5g} "
@@ -437,14 +512,15 @@ for look in LOOK_ORDER:
           f"max={float(d.max()):.3g}")
 if PARITY == "all":
     patch = [(x, y, z) for _, x, y, z in verify_shim.PATCH_GRID]
+    wrk_patch = [(M_XYZ_709 @ t).astype(np.float32) for t in patch]
     exp = shim_run(0, patch, overrides=LOOKS["Base"])
-    got = render_group(bn.GROUP_NAME, 0, patch, 5, 8,
+    got = render_group(bn.GROUP_NAME, 0, wrk_patch, 5, 8,
                        exr="/tmp/parity_base_pg.exr")
     d = np.abs(exp - got)
     check("parity:Base:patch-enc0", float(d.max()) <= 1e-4,
           f"max={float(d.max()):.3g}")
     for enc in range(9):
-        got = render_group(bn.GROUP_NAME, enc, triplets, 64, 64,
+        got = render_group(bn.GROUP_NAME, enc, wrk_ramp, 64, 64,
                            exr=f"/tmp/parity_ramp_{enc}.exr")
         exp = shim_run(enc, triplets, overrides=LOOKS["Base"])
         d = np.abs(exp.reshape(-1, 3) - got.reshape(-1, 3))

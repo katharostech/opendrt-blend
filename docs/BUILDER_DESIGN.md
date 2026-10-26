@@ -31,8 +31,17 @@ its own output sockets. Harness/render settings = Build wave.
   Dystopic, Umbra) = a **thin wrapper** "OpenDRT 1.1 [look]": exactly 3
   nodes (GroupInput, one CompositorNodeGroup instance of OpenDRT 1.1 Base
   named "base", GroupOutput), every input/output forwarded one-to-one by
-  name; only the wrapper's socket defaults differ. Copies share branch/fn/
-  dgpw groups (totals 3830 nodes / 7947 links; branch count unchanged).
+  name; only the wrapper's socket defaults differ. Wrappers share
+  branch/fn/dgpw groups; totals 3831 nodes / 7948 links (main 65/735
+  with the folded convert node); branch count unchanged.
+- The user's Convert Color Space step is folded IN-TREE (2026-10-26 user
+  decision): the main tree's head = 'raw2xyz' CompositorNodeConvertColorSpace
+  (from left at the node's 'scene_linear' default = working-space role;
+  to pinned 'Linear CIE-XYZ D65', measured to equal OpenDRT's input
+  matrices for 709/2020 <=1e-6) between the Image group input and the
+  SeparateColor. Branches receive rgb.x/y/z group inputs - no double
+  conversion anywhere. rt_smoke measures the node's runtime matrix per
+  run and pre-converts parity inputs with its inverse.
 - Math-exact by construction: look chains (DCTL 758-781) set only exposed
   params; tonescale combos (787-825) only contrast knobs; "USE LOOK
   PRESET" (tonescale_preset==0) emits nothing; clamp=1 hard-coded in

@@ -10,13 +10,14 @@ NO node layout - the group interior is compiler output, not a reading aid):
   - main tree "OpenDRT 1.1 Base" (defaults = the official "Base" look
     preset; every other official look also gets a thin wrapper node
     "OpenDRT 1.1 [look]" = one Base instance, inputs forwarded 1:1):
-    interface = 1 input "Image" (NodeSocketColor
-    = linear CIE XYZ D65, values used as-is, no color-management conversion
-    in-tree) + 69 parameter sockets + 9 color outputs (one per display
-    encoding; selection = which output is linked; per-output lazy
-    evaluation, PROBE_REPORT §2); interior = SeparateColor at the Image
-    entry + tonescale cluster (src 943-960 emitted once; ts_p (948) and
-    ts_dsc (953) live inside the branch groups) + 9 CompositorNodeGroup
+    interface = 1 input "Image" (NodeSocketColor = the compositor working
+    space; converted in-tree to linear CIE-XYZ D65 by the 'raw2xyz' Convert
+    Color Space node) + 69 parameter sockets + 9 color outputs (one per
+    display encoding; selection = which output is linked; per-output lazy
+    evaluation, PROBE_REPORT §2); interior = 'raw2xyz' Convert Color Space
+    -> SeparateColor at the Image entry + tonescale cluster (src 943-960
+    emitted once; ts_p (948) and ts_dsc (953) live inside the branch
+    groups) + 9 CompositorNodeGroup
     instances, one per encoding, each wired with the live vars it reads.
   - per-encoding branch groups "OpenDRT b{enc}": src 964..1210 (crv overlay
     pruned exactly per design §D.4) with branch-baked constants (tn_su,
@@ -344,14 +345,7 @@ OUTPUTS = [
     ("Dolby PQ", "Dolby - PQ / P3-D65"),
 ]
 
-IMAGE_SOCKET_DESC = (
-    "Linear CIE XYZ D65. Values used as-is (no color-management conversion "
-    "in-tree). Upstream recipe: Image -> Convert Color Space node (To: "
-    "'Linear CIE-XYZ D65'). Measured: the node equals OpenDRT's input "
-    "matrices for Linear Rec.709/Rec.2020 (<= ~1e-6). ACES-class caveat: "
-    "ACEScg/ACES2065-1 DIVERGE (max_abs ~4e-3, different internal "
-    "AP0/AP1->XYZ transforms) - ACES inputs need a baked OpenDRT matrix "
-    "converter group.")
+IMAGE_SOCKET_DESC = "Image in the scene linear working space."
 
 
 def cwp_norm_ladder(gamut):
@@ -1692,8 +1686,19 @@ class Builder:
         base = self.pipeline[0]  # declare rgb f3(p_R,p_G,p_B), src 739
         sep = self._mk(base, "CompositorNodeSeparateColor",
                        "rgb = (p_R, p_G, p_B) via SeparateColor (src 739)")
+        # Fold the user's external Convert Color Space step in-tree as the
+        # first step (2026-10-26 user decision): working space -> linear
+        # CIE-XYZ D65. from_color_space stays at the node's default
+        # 'scene_linear' (working-space role, adapts to user configs);
+        # to_color_space pins to the measured OpenDRT input gamut target.
+        # One node total: branches receive rgb.x/y/z group inputs, so no
+        # branch can double-convert.
         gin = self.gin
-        self.links.new(gin.outputs["Image"], sep.inputs["Image"])
+        raw2xyz = self.tree.nodes.new("CompositorNodeConvertColorSpace")
+        raw2xyz.name = "raw2xyz"
+        raw2xyz.to_color_space = "Linear CIE-XYZ D65"
+        self.links.new(gin.outputs["Image"], raw2xyz.inputs[0])
+        self.links.new(raw2xyz.outputs[0], sep.inputs["Image"])
         env = {
             "rgb": {"x": ("s", sep.outputs["Red"]),
                     "y": ("s", sep.outputs["Green"]),

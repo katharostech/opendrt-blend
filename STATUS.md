@@ -293,14 +293,20 @@ Node-graph generation toolchain (decided, verified 2026-10):
   (phase A interface/default/name/R-14 audits; phase B smoke render; phase C
   `--parity enc0|all` compares against tools/dctl_shim/build_dctl_shim).
 - `dist/OpenDRT_v1.1.0.blend` - built artifact for user testing:
-  sha256 76eaf9ecee0575c2... (33 node groups, size 900233; main 64 nodes /
-  734 links; totals 3830 nodes / 7947 links; single libraries.write).
-  Preset nodes are THIN WRAPPERS (2026-10-26 user decision, replacing the
-  initial full-copy variant): "OpenDRT 1.1 [look]" = GroupInput + one
+  sha256 7c4e7474480d8cb72b294f56e64e186b4f41ced061cfd5033d3fd7e24dfab9ea
+  (33 node groups, size 899937; main 65 nodes / 735 links - the folded
+  conversion; totals 3831 nodes / 7948 links; single libraries.write).
+  Image socket description now exactly "Image in the scene linear working
+  space." (2026-10-26 user decision; semantics unchanged - the fold-in
+  'raw2xyz' convert + parity noise numbers above describe the math).
+  Preset nodes are THIN WRAPPERS: "OpenDRT 1.1 [look]" = GroupInput + one
   "base" instance of OpenDRT 1.1 Base + GroupOutput, inputs/outputs
-  forwarded one-to-one, interface defaults = the look's chain values;
-  file weight 1080690 -> 900233 bytes. Gate: --parity enc0 160 checks
-  PASS; --parity all 170 checks PASS (bit-exact forwards).
+  forwarded one-to-one, interface defaults = the look's chain values.
+  The user's external Convert Color Space step is folded in-tree:
+  'raw2xyz' node (from = scene_linear working-space role, to = 'Linear
+  CIE-XYZ D65') between the Image input and the SeparateColor; gates
+  --parity enc0 PASS; --parity all 172 checks PASS (matrix roundtrip
+  noise <= 8.2e-06, tolerance 1e-04).
 - All 8 user-facing groups (main + 7 preset wrappers) are assets in the
   one deterministic "OpenDRT" catalog (uuid 68af1827, uuid5);
   dist/blender_assets.cats.txt sidecar carries it; branch/fn/dgpw/vdot
