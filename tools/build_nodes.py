@@ -2049,32 +2049,27 @@ def main(argv=None):
     # plumbing, deliberately NOT assets. All share one deterministic
     # catalog uuid5 ("OpenDRT").
     catalog_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, "blender-opendrt"))
-    for group, look_name in ([(ng, "Base")] +
-                             [(g, g.name.removeprefix(PRESET_PREFIX))
-                              for g in preset_groups]):
+    mark_assets = [(ng, "Base")] + \
+        [(g, g.name.removeprefix(PRESET_PREFIX)) for g in preset_groups]
+    # Shared interface thumbnail: LOCAL asset libraries read the embedded
+    # ID preview straight from the .blend; the REMOTE-library listing
+    # (generate_asset_pack) exports it to thumbnails/<IdType>/<name>.webp and
+    # references it by SHA256 in the _v1 index. Built-in Blender icons are
+    # vector UI glyphs with no rasterization API - previews must be image
+    # pixels: tools/assets/camera-icon.png (CC0 1.0, iconsdb.com).
+    thumb_src = Path(__file__).resolve().parent / "assets" / "camera-icon.png"
+    if not thumb_src.is_file():
+        raise BuildError(f"missing asset thumbnail: {thumb_src}")
+    for group, look_name in mark_assets:
         group.asset_mark()
         group.use_fake_user = True
         group.asset_data.catalog_id = catalog_id
-        preset_note = (f", {look_name} look preset (official OpenDRT "
-                       "preset; thin wrapper node: one OpenDRT 1.1 Base "
-                       "instance inside with every input forwarded 1:1 and "
-                       "every look-chain control defaulted to this "
-                       "preset's DCTL chain values)"
-                       if look_name != "Base" else
-                       ", Base look preset (official OpenDRT 'Base'; all "
-                       "look-chain controls defaulted to the Base DCTL "
-                       "chain values. Every official look is also available "
-                       "as a separate preset node 'OpenDRT 1.1 [look]')")
         group.asset_data.description = (
-            "OpenDRT v1.1.0 display transform as a native Blender compositor "
-            f"node group{preset_note}; 9 output branches (one per display "
-            "encoding; select by linking an output, sRGB Display first "
-            "= the default drag-into-place output), 1 image input (the "
-            "scene's linear working space; converted in-tree) + 68 "
-            "parameter sockets. Provenance: spec sha256 "
-            f"{spec_sha}; source DCTL sha256 {spec['provenance']['sha256']}; "
-            f"tag {spec['provenance']['tag']} commit "
-            f"{spec['provenance']['commit'][:8]}.")
+            f"OpenDRT v1.1.0 display transform \"{look_name}\" preset")
+        with bpy.context.temp_override(id=group):
+            bpy.ops.ed.lib_id_load_custom_preview(filepath=str(thumb_src))
+        if not group.preview or group.preview.image_size[0] == 0:
+            raise BuildError(f"preview embed failed for {group.name}")
     # fake_user=True: the fake-user bit must be written by libraries.write
     # itself (5.3 Beta reads use_fake_user=False otherwise). The historical
     # open_mainfile/save_as_mainfile re-save workaround also re-embedded

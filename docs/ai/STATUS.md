@@ -510,8 +510,9 @@ Provenance rule: `build/spec/opendrt-v1.1.0.json` is DERIVED from the DCTL
 — never committed, never hand-edited (2026-10-27 user decision; see the
 relayout section below). Regenerate with `pixi run generate-spec`; the
 converter embeds tag/commit and its sha256 must match
-`reference/SOURCE.sha256`; the builder embeds both hashes in every asset
-description and fails the build when the JSON doesn't carry them.
+`reference/SOURCE.sha256`; the build log records both hashes (terse asset
+descriptions since user commit 1fa4fbf), and the builder fails when the
+JSON doesn't carry provenance.
 
 ## Repo relayout 2026-10-27 (user)
 
@@ -546,3 +547,14 @@ Tonescale"; "Creative White" moved after it. Blender-side only
 order). Also: both workflows gained a `generate-spec` step before their
 build step - CI checkouts have no `build/spec/`, which broke every run
 since the relayout.
+
+## Asset thumbnail 2026-10-27 (user)
+
+Every asset shows a shared CC0 camera icon (downloaded from iconsdb.com,
+stored at `tools/assets/camera-icon.png`). The builder embeds it as each
+marked group's ID preview (`temp_override(id=...)` +
+`ed.lib_id_load_custom_preview`) - the LOCAL asset browser reads it right
+out of the blend, and the remote-listing generator exports it to
+`OpenDRT_v1.1.0_thumbnails/…/<name>.webp` referenced by SHA256 in the
+`_v1` index. Blender's built-in icons are vector UI glyphs with no
+rasterization API; rt_smoke gained a standing `thumb-embedded` check.

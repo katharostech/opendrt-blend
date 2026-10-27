@@ -75,6 +75,9 @@ check("tree-type", ng.type == "COMPOSITING" or ng.bl_idname == "CompositorNodeTr
       str(ng.bl_idname))
 check("asset-marked", ng.asset_data is not None)
 check("fake-user", bool(ng.use_fake_user), f"use_fake_user={ng.use_fake_user}")
+check("thumb-embedded", ng.preview is not None and
+      ng.preview.image_size[0] > 0,
+      f"{tuple(ng.preview.image_size) if ng.preview else None}")
 
 items = list(ng.interface.items_tree)
 outs = [i for i in items if i.item_type == "SOCKET" and

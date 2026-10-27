@@ -3,6 +3,8 @@
 Everything this repo generates lives under `build/` (gitignored). Tracked
 inputs: `reference/OpenDRT_v1.1.0.dctl` (upstream source of truth),
 `tools/` (converter, builder, smoke gate, probes, DCTL shim),
+`tools/assets/camera-icon.png` (the CC0 1.0 asset-image embedded as each
+asset's preview by the builder),
 `docs/index.html` (landing-page source).
 
 ```
@@ -27,6 +29,15 @@ Two artifact packs:
   `latest` GitHub release zips (`.github/workflows/release-local-pack.yml`
   -> `build/opendrt-blend.zip`): a LOCAL asset library (blend + catalog
   sidecar only, `--local`).
+
+Both packs carry the asset thumbnail: the builder embeds
+`tools/assets/camera-icon.png` (CC0 1.0, iconsdb.com) as each asset's
+embedded ID preview. The LOCAL asset browser reads that preview straight
+from the blend; the REMOTE-library listing exports it to
+`OpenDRT_v1.1.0_thumbnails/<IdType>/<asset>.webp` referenced by SHA256 in
+the `_v1` index. (Blender's built-in icons are vector UI glyphs with no
+rasterization API, so asset previews must be real image pixels.)
+
 
 ## Prerequisites
 
