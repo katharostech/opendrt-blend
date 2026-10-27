@@ -10,7 +10,7 @@ What it answers:
   1. Which from_color_space/to_color_space strings the node accepts
      (by assigning an invalid string and parsing the RNA enum error list).
   2. Are the rendered XYZ values numerically identical to float32 application
-     of spec/opendrt-v1.1.0.json input matrices (matrix_*_to_xyz)?
+     of build/spec/opendrt-v1.1.0.json input matrices (matrix_*_to_xyz)?
      Controls: (a) Raw-image -> Composite passthrough (catches any non-identity
      pipeline leg), (b) identity conversion (from == to).
   3. Verdict per colorspace: identical / diverges, with max-abs + max-rel.
@@ -27,7 +27,7 @@ import bpy
 
 PROBES_DIR = Path(__file__).resolve().parent
 ROOT = PROBES_DIR.parent.parent
-SPEC = ROOT / "spec" / "opendrt-v1.1.0.json"
+SPEC = ROOT / "build" / "spec" / "opendrt-v1.1.0.json"
 OUT_DIR = Path("/tmp/opendrt_probes")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 

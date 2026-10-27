@@ -1,9 +1,11 @@
 # BUILDER_DESIGN.md — Blender node-graph builder contract (OpenDRT v1.1.0)
 
-Contract for `tools/build_nodes.py` (Build wave). Ground truth: `STATUS.md`
-(committed decisions) + `spec/opendrt-v1.1.0.json` (the IR) +
-`reference/OpenDRT_v1.1.0.dctl` (resolves IR gaps). This doc adds no new
-algorithms: every emission is a spec fact (src-cited) or a flagged decision.
+Contract for `tools/build_nodes.py` (Build wave). Ground truth:
+`docs/ai/STATUS.md` (committed decisions) + `build/spec/opendrt-v1.1.0.json`
+(the IR; a derived, untracked build artifact - regenerate with
+`pixi run generate-spec`) + `reference/OpenDRT_v1.1.0.dctl` (resolves IR
+gaps). This doc adds no new algorithms: every emission is a spec fact
+(src-cited) or a flagged decision.
 
 ## 0. Builder output
 
@@ -451,8 +453,7 @@ DCTL tooltips → socket descriptions verbatim.)
 ## G. Risks / uncertain emissions (validator-relevant)
 
 | # | risk | mitigation |
-|---|---|---|
-| R-01 | IR return-null @ sdivf 329 vs DCTL `return 0.0f` | 1× DIVIDE — measured Blender div-by-0 = 0.0 (CPU+GPU) = DCTL behavior; golden black-pixel case in tests/golden asserts |
+| R-01 | IR return-null @ sdivf 329 vs DCTL `return 0.0f` | 1× DIVIDE — measured Blender div-by-0 = 0.0 (CPU+GPU) = DCTL behavior; golden black-pixel case in build/golden asserts |
 | R-02 | DCTL `_`-fast intrinsics (_powf/_sqrtf/_expf/_exp10f/_logf/_fmod/_atan2f) ≈ fast-math — ULP divergence vs Blender f32 | validator vs C++-compiled DCTL (OracleShim) with ULP tolerance + per-stage boundary comparisons at src 964..1210 stage splits |
 | R-03 | spowf negative/zero base | gate = le(a,0) Mix per §B; a=0 stays 0 (never POWER(0, negative)) |
 | R-04 | fmod sign convention | **RESOLVED measured**: MODULO = GLSL fmod sign-of-dividend (-7%4=-3) = C fmod, CPU+GPU identical; fallback pattern unnecessary |

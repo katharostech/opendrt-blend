@@ -31,6 +31,9 @@ jobs:
 
       # --local skips the remote-listing step; in either case no Blender
       # binary is needed anywhere (blend is built with the bpy wheel).
+      - name: Generate spec from reference DCTL
+        run: pixi run generate-spec
+
       - name: Build local asset pack (blend + catalog sidecar)
         run: pixi run build-local-pack
 
@@ -38,7 +41,7 @@ jobs:
       # folder (point Blender here).
       - name: Zip pack
         run: |
-          cd local-pack
+          cd build/local-pack
           zip -r ../opendrt-blend.zip OpenDRT_v1.1.0
 
       # Rolling release: delete + recreate so the `latest` tag tracks HEAD.
@@ -51,4 +54,4 @@ jobs:
             echo 'This release contains a blender asset pack containing the OpenDRT compositor nodes. Unzip the pack and add it to your list of Blender asset packs to install it.'
           } | gh release create latest --latest --target "$GITHUB_SHA" \
             --title 'Asset Pack' --notes-file - \
-            opendrt-blend.zip
+            build/opendrt-blend.zip

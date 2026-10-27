@@ -4,10 +4,10 @@
 Generates the three deterministic input sets (linear CIE XYZ D65 -> the shim pins
 in_oetf=Linear and in_gamut=XYZ-identity, exactly like the planned node tree),
 runs tools/dctl_shim/build_dctl_shim once per (display_encoding 0..8, set),
-writes tests/golden/enc<N>/<set>.bin, and runs every case a second time to
+writes build/golden/enc<N>/<set>.bin, and runs every case a second time to
 assert byte-identical output (determinism gate). Also asserts all outputs are
 finite and records per-encoding shim config (from --json-info) plus sha256 of
-every golden file into tests/golden/index.json.
+every golden file into build/golden/index.json.
 
 Inputs never feed NaN/Inf; the "negative / superwhite" edge cases in the patch
 grid check that the shim stays finite rather than probing undefined domain.
@@ -25,7 +25,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SHIM = ROOT / "tools/dctl_shim/build_dctl_shim"
-DEFAULT_OUT = ROOT / "tests/golden"
+DEFAULT_OUT = ROOT / "build" / "golden"
 
 # display_encoding_preset option order, as in reference/OpenDRT_v1.1.0.dctl line 128.
 ENC_NAMES = ["rec1886", "srgb", "displayp3", "p3d60", "p3dci", "xyz",

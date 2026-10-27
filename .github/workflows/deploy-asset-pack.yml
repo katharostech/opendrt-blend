@@ -31,16 +31,21 @@ jobs:
       # listing generator is pure Python (_bpy_internal), called in-process
       # from the same bpy wheel - no Blender binary needed.
 
+      # The spec JSON is a derived artifact (build/, gitignored) - each
+      # checkout regenerates it from the reference DCTL before any build.
+      - name: Generate spec from reference DCTL
+        run: pixi run generate-spec
+
       - name: Build blend + asset pack listing
         run: pixi run build-nodes
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload Pages artifact (dist = asset library root)
+      - name: Upload Pages artifact (online-asset-pack = asset library root)
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: build/online-asset-pack
 
   deploy:
     needs: build

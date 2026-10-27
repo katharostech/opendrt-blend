@@ -13,7 +13,7 @@ Run: pixi run python tools/probes/probe_width.py
 import bpy
 import sys
 
-BLEND = "local-pack/OpenDRT_v1.1.0/OpenDRT_v1.1.0.blend"
+BLEND = "build/local-pack/OpenDRT_v1.1.0/OpenDRT_v1.1.0.blend"
 
 LOOKS = ["Standard", "Arriba", "Sylvan", "Colorful", "Aery", "Dystopic",
          "Umbra"]

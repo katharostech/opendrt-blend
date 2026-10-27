@@ -1628,7 +1628,7 @@ def main() -> int:
 
     root = Path(__file__).resolve().parent.parent
     dctl = args.dctl or (root / "reference" / "OpenDRT_v1.1.0.dctl")
-    out = args.out or (root / "spec" / f"opendrt-{(args.tag or 'v1.1.0')}.json")
+    out = args.out or (root / "build" / "spec" / f"opendrt-{(args.tag or 'v1.1.0')}.json")
     spec = convert(dctl, args.tag, args.commit)
 
     if args.print:

@@ -8,8 +8,7 @@ no interface input, no group-input output, in any written tree.
 import sys
 import bpy
 
-BLEND = "/home/zicklag/git/zicklag/blender-opendrt/" \
-        "local-pack/OpenDRT_v1.1.0/OpenDRT_v1.1.0.blend"
+BLEND = "build/local-pack/OpenDRT_v1.1.0/OpenDRT_v1.1.0.blend"
 TARGET = "Enable Purity Compress High"
 CONTROL = "Enable Mid Purity"  # live checkbox, must still exist + be consumed
 

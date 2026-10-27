@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """OpenDRT v1.1.0 -> Blender compositor node group (Build wave).
 
-Contract: docs/BUILDER_DESIGN.md (+ STATUS.md final decisions). Ground truth
-for math semantics: docs/PROBE_REPORT.md (measured Blender facts win over
-design-doc fallbacks) and spec/opendrt-v1.1.0.json (the IR).
+Contract: docs/ai/BUILDER_DESIGN.md (+ docs/ai/STATUS.md final decisions). Ground truth
+for math semantics: docs/ai/PROBE_REPORT.md (measured Blender facts win
+over design-doc fallbacks) and build/spec/opendrt-v1.1.0.json (the IR, a
+derived build artifact; regenerate with pixi run generate-spec).
 
 Emission (user decision 2026-10-26: nested node groups; NO NodeFrames and
 NO node layout - the group interior is compiler output, not a reading aid):
@@ -46,9 +47,11 @@ NO node layout - the group interior is compiler output, not a reading aid):
     remote-asset-pack listing (_asset-library-meta.json, _v1/
     asset-index.json) - listing generated IN-PROCESS from the bpy wheel
     (_bpy_internal, no blender binary needed) - and the landing page
-    (repo-root index.html copied verbatim; GitHub Pages deploys dist/
-    via .github/workflows/deploy-asset-pack.yml). --local skips the
-    listing + landing: blend + sidecar only (release-local-pack.yml zip).
+    (docs/index.html copied verbatim; GitHub Pages deploys
+    build/online-asset-pack/ via .github/workflows/deploy-asset-pack.yml).
+    --local skips the listing + landing: blend + sidecar only
+    (release-local-pack.yml zip). All build outputs live under build/
+    (gitignored; see docs/ai/BUILD.md).
     Blend-byte determinism is explicitly not a goal (see STATUS.md).
 
 Measured-semantics reconciliations (design doc + measurements; also printed
@@ -89,11 +92,9 @@ by the build log):
   D9  §B.6 cwp ladders: acc starts at candidate 0; fires are the DCTL arms'
       own conditions (eq cwp k / ge cwp 2), mutually exclusive for reachable
       integer cwp; a fractional cwp resolves to the candidate-0 arm
-      (unreachable from the DCTL's step-1 combo; documented).
-
 Usage:
-  pixi run python tools/build_nodes.py --spec spec/opendrt-v1.1.0.json \
-    --out dist/OpenDRT_v1.1.0.blend
+  pixi run python tools/build_nodes.py --spec build/spec/opendrt-v1.1.0.json \
+    --out build/online-asset-pack/OpenDRT_v1.1.0.blend
 Exit codes: 0 ok; 1 any unmappable IR element or failed invariant (no silent
 drops, fails loudly); 2 usage error.
 """
@@ -1975,8 +1976,9 @@ def main(argv=None):
                     help="LOCAL asset pack: blend + catalog sidecar only "
                          "(skip the remote-asset-library listing and the "
                          "index.html landing page)")
-    ap.add_argument("--spec", default="spec/opendrt-v1.1.0.json")
-    ap.add_argument("--out", default="dist/OpenDRT_v1.1.0.blend")
+    ap.add_argument("--spec", default="build/spec/opendrt-v1.1.0.json")
+    ap.add_argument("--out",
+                    default="build/online-asset-pack/OpenDRT_v1.1.0.blend")
     args = ap.parse_args(argv)
     print("bpy", bpy.app.version_string, flush=True)
     if tuple(bpy.app.version)[:3] != (5, 2, 3):
@@ -2101,9 +2103,11 @@ def main(argv=None):
         print("local asset pack: listing + index.html skipped", flush=True)
     else:
         generate_asset_pack(out_path)
-        # Landing page: the editable repo-root index.html copied verbatim
-        # into the dist web root (Pages serves dist/ as its root).
-        index_src = Path(__file__).resolve().parent.parent / "index.html"
+        # Landing page: the editable tracked source docs/index.html
+        # copied verbatim into the online asset pack web root (Pages
+        # serves build/online-asset-pack/ as its root).
+        index_src = Path(__file__).resolve().parent.parent / \
+            "docs" / "index.html"
         if not index_src.is_file():
             raise BuildError(f"missing landing page: {index_src}")
         out_path.parent.joinpath("index.html").write_bytes(

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RT+smoke gate for dist/OpenDRT_v1.1.0.blend (run via the 5.3 binary).
+"""RT+smoke gate for build/online-asset-pack/OpenDRT_v1.1.0.blend (5.3 binary).
 
   - main group "OpenDRT 1.1 Base" + the 7 official preset nodes
     "OpenDRT 1.1 [look]" exist (asset+fake-user; asset set is exactly those
@@ -14,10 +14,11 @@ Phase B (smoke render 64x64 Cycles CPU):
   - render; assert finite + non-uniform; report 3 sample pixels.
 
 Phase C (bonus parity): the same group rendered per patch-grid/neutral-ramp/
-  hdr-sweep inputs vs the compiled DCTL shim (tests/golden inputs regenerated
-  via tools/verify_shim.py functions; enc outputs compared).
+  hdr-sweep inputs vs the compiled DCTL shim (build/golden golden data from
+  tools/verify_shim.py; enc outputs compared).
 
-Usage: $BLENDER_BIN -b --factory-startup /path/to/dist/OpenDRT_v1.1.0.blend \
+Usage: $BLENDER_BIN -b --factory-startup \
+         /path/to/build/online-asset-pack/OpenDRT_v1.1.0.blend \
          -P rt_smoke.py -- [--parity enc0|all] [--shim PATH]
 """
 import json
@@ -30,8 +31,7 @@ import numpy as np
 import bpy
 sys.path.insert(0, str(Path("tools").resolve()))
 import build_nodes as bn  # noqa: E402  (module import; main() is guarded)
-
-SPEC = json.loads(Path("spec/opendrt-v1.1.0.json").read_text())
+SPEC = json.loads(Path("build/spec/opendrt-v1.1.0.json").read_text())
 LOOKS = {e["name"]: e["values"] for e in SPEC["selection"]["look"]["entries"]}
 LOOK_ORDER = [e["name"] for e in SPEC["selection"]["look"]["entries"]]
 UI_KIND = {bn.ui_to_internal(r[1]): r[2] for r in bn.SOCKET_TABLE}
@@ -48,15 +48,7 @@ def argval(flag, default):
     return args[args.index(flag) + 1] if flag in args else default
 
 
-PARITY = argval("--parity", "enc0")  # none | enc0 | patchall
-SHIM = Path(argval("--shim", "tools/dctl_shim/build_dctl_shim"))
-
-
-def argval(flag, default):
-    return args[args.index(flag) + 1] if flag in args else default
-
-
-BLEND_PATH = Path(argval("--blend", "dist/OpenDRT_v1.1.0.blend"))
+BLEND_PATH = Path(argval("--blend", "build/online-asset-pack/OpenDRT_v1.1.0.blend"))
 PARITY = argval("--parity", "enc0")  # none | enc0 | all
 SHIM = Path(argval("--shim", "tools/dctl_shim/build_dctl_shim"))
 

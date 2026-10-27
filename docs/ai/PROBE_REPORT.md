@@ -12,7 +12,7 @@ Scripts: `probe_xyz_equiv.py`, `probe_lazy.py`, `probe_interface.py`, `probe_mat
 
 ## Probe 1 — Blender `Convert Color Space` vs OpenDRT spec input matrices (XYZ D65)
 
-Method: real headless compositor renders (Cycles CPU, 4x3 px). Test values (linear, one per pixel): white 1.0, 0.18 gray, 0.5, HDR 2.0, HDR 10.0, black, R/G/B primaries, yellow/cyan/magenta, mixed chroma (0.35, 0.08, 0.22). Source = in-memory float32 image tagged `Non-Color` (identity; `Raw` does NOT exist as an image colorspace in 5.2/5.3). Pipeline: Image → `CompositorNodeConvertColorSpace` → tree Group Output → float32 EXR (`color_depth='32'`, `exr_codec='NONE'`, `view_transform='Standard'`), read back with `Non-Color`. Reference: numpy float32 (and float64) application of `spec/opendrt-v1.1.0.json` constants, using the float32-rounded stored input values.
+Method: real headless compositor renders (Cycles CPU, 4x3 px). Test values (linear, one per pixel): white 1.0, 0.18 gray, 0.5, HDR 2.0, HDR 10.0, black, R/G/B primaries, yellow/cyan/magenta, mixed chroma (0.35, 0.08, 0.22). Source = in-memory float32 image tagged `Non-Color` (identity; `Raw` does NOT exist as an image colorspace in 5.2/5.3). Pipeline: Image → `CompositorNodeConvertColorSpace` → tree Group Output → float32 EXR (`color_depth='32'`, `exr_codec='NONE'`, `view_transform='Standard'`), read back with `Non-Color`. Reference: numpy float32 (and float64) application of `build/build/spec/opendrt-v1.1.0.json` constants, using the float32-rounded stored input values.
 
 Controls (both runtimes, must be exact):
 | control | result |
