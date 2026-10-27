@@ -1,6 +1,6 @@
 # Blender OpenDRT Compositor Nodes
 
-> **Note:** This appears to be working fine so far, but it is work-in-progress and may have bugs. Please open an issue if you have any problems with it!
+> **Note:** This is relatively new and it isn't guaranteed that this **exactly** reproduces OpenDRT, but at the time of writing everything seems to be accurate. If you notice a divergence from the official OpenDRT implementation that's a bug, please open an issue!
 
 This is repo creates a [Blender] asset pack containing compositor nodes for the [OpenDRT] picture formation algorithm.
 
@@ -15,6 +15,8 @@ This article is a good read for getting into the weeds on what might make OpenDR
 [pf]: https://chrisbrejon.com/articles/what-makes-a-good-picture-formation/
 
 ## Installation
+
+This is a Blender asset pack, **not** a Blender plugin. The handy thing about this is that if you add an OpenDRT node to your blend it is saved with your blend and can be opened by anybody that has not installed the asset pack. It's all packed into your file.
 
 There are two ways to install the asset pack: through the online asset directory, or by downloading and installing it manually.
 
@@ -80,3 +82,34 @@ If you want to learn more about the color management process and color grading i
 You may notice that there are 9 different output sockets on the OpenDRT nodes. Each output corresponds to a different display standard. For instance, if you are targeting typical web, mobile, and desktop platforms you are 99.9% surely going to want to simply use the sRGB output, as that is the standard for color across most applications and the web.
 
 When targeting theaters or HDR displays, though, you need to select the output that is appropriate to that display. This completely changes the way that color is encoded and the gamut, or range of different colors, that are output. You shouldn't use anything other than sRGB unless you know what you are doing.
+
+## AI Usage
+
+The conversion scripts in this repo that were used to generate Blender node
+groups from the OpenDRT reference implementation were written almost completely
+by GLM 5.3, an AI model, using the omp coding harness, with significant steering
+by @zicklag on the high-level and user-facing points. Almost all of the
+user-facing documentation has been written by hand.
+
+We know that many people are against the use of AI, especially in art, but we
+believe that this use was appropriate. The conversion scripts are doing boring,
+soulless work to convert artistic math by the author of OpenDRT from one format
+to another. The details of this process are not very creative and no one is here
+to enjoy the creativity of the scripts.
+
+The end result of these scripts, is that we have an artistic tool available to
+use in Blender which was previously only usable in proprietary software. We
+think that this is a net benefit to the Blender artists and ecosystem.
+
+### Code Status
+
+The code quality has not been inspected in detail, but none of the python code
+in this repo ends up inside your blend: only the final node graph converted by
+the scripts are used inside Blender.
+
+There is some AI-generated build instructions in [BUILD.md](./docs/ai/BUILD.md),
+which we may extract into more human facing documentation later, so that it's
+easier to run the scripts yourself. It's not hard to run them yourself already,
+and that should get you started if you wish, we just generally prefer to have 
+humans write what we mean humans to read, so those instructions are left in
+`docs/ai` for now.
