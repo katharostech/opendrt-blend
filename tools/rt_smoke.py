@@ -118,7 +118,13 @@ if panels:
     check("panels-2..8-collapsed",
           all(p.default_closed is True for p in panels[1:]))
 
-EXP_OUT_NAMES = ["Rec.1886", "sRGB Display", "Display P3", "P3-D60",
+ENC_NAMES = ["Rec.1886", "sRGB Display", "Display P3", "P3-D60",
+             "P3-DCI", "DCI P3 XYZ", "Rec.2100 PQ", "Rec.2100 HLG",
+             "Dolby PQ"]
+# UI order (builder OUTPUT_UI_ORDER): sRGB Display FIRST so a node
+# dragged into a wire auto-links to sRGB; wrappers share the builder's
+# interface, hence this order. Enc semantics resolve BY NAME below.
+EXP_OUT_NAMES = ["sRGB Display", "Rec.1886", "Display P3", "P3-D60",
                  "P3-DCI", "DCI P3 XYZ", "Rec.2100 PQ", "Rec.2100 HLG",
                  "Dolby PQ"]
 check("output-names-order", [o.name for o in outs] == EXP_OUT_NAMES,
@@ -395,7 +401,8 @@ def render_group(gname, enc_index, triplets, w, h,
     for it in g.interface.items_tree:
         pass  # (defaults live in the interface; instance copies mirror them)
     tree.links.new(nimg.outputs[0], gnode.inputs["Image"])
-    tree.links.new(gnode.outputs[enc_index], wr_out.inputs[0])
+    tree.links.new(gnode.outputs[ENC_NAMES[enc_index]],
+                   wr_out.inputs[0])
     p = Path(exr)
     sc.render.filepath = str(p)
     bpy.ops.render.render(write_still=True)

@@ -411,7 +411,10 @@ a builder copying UI defines renders wrongly (extra contrast modules active).
 Rec.709", "sRGB Display - 2.2 Power / Rec.709", "Display P3 - 2.2 Power /
 P3-D65", "DCI - 2.6 Power / P3-D60", "DCI - 2.6 Power / P3-DCI", "DCI - 2.6
 Power / XYZ", "Rec.2100 - PQ / Rec.2020 (P3 Limited)", "Rec.2100 - HLG /
-Rec.2020 (P3 Limited)", "Dolby - PQ / P3-D65". Unlinked outputs are not
+Rec.2020 (P3 Limited)", "Dolby - PQ / P3-D65". INTERFACE ORDER: sRGB
+Display first (2026-10-26 change: a node dragged into an existing wire
+auto-links to sRGB; builder `OUTPUT_UI_ORDER`; branch wiring keys on the
+spec/DCTL table order regardless). Unlinked outputs are not
 evaluated; each branch is an independent DAG ending at one output.
 
 ## F. Panel layout proposal

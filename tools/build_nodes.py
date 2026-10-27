@@ -350,6 +350,12 @@ OUTPUTS = [
     ("Dolby PQ", "Dolby - PQ / P3-D65"),
 ]
 
+# Interface output ORDER: sRGB Display first (2026-10-26 user decision) so
+# a node dragged into an existing wire auto-links to sRGB - the common
+# case. OUTPUTS itself stays in DCTL enc-index order: build_graph keys the
+# per-encoding branch wiring on that position.
+OUTPUT_UI_ORDER = [1, 0, 2, 3, 4, 5, 6, 7, 8]
+
 IMAGE_SOCKET_DESC = "Image in the scene linear working space."
 
 
@@ -1595,8 +1601,11 @@ class Builder:
         i_in = iface.new_socket("Image", in_out="INPUT",
                                 socket_type="NodeSocketColor",
                                 description=IMAGE_SOCKET_DESC)
+        if sorted(OUTPUT_UI_ORDER) != list(range(len(OUTPUTS))):
+            raise BuildError("OUTPUT_UI_ORDER is not a permutation of "
+                             "OUTPUTS")
         outs = []
-        for name, desc in OUTPUTS:
+        for name, desc in (OUTPUTS[i] for i in OUTPUT_UI_ORDER):
             outs.append(iface.new_socket(
                 name, in_out="OUTPUT", socket_type="NodeSocketColor",
                 description=f"Target display: {desc}"))
@@ -2047,7 +2056,8 @@ def main(argv=None):
         group.asset_data.description = (
             "OpenDRT v1.1.0 display transform as a native Blender compositor "
             f"node group{preset_note}; 9 output branches (one per display "
-            "encoding; select by linking an output), 1 image input (the "
+            "encoding; select by linking an output, sRGB Display first "
+            "= the default drag-into-place output), 1 image input (the "
             "scene's linear working space; converted in-tree) + 69 "
             "parameter sockets. Provenance: spec sha256 "
             f"{spec_sha}; source DCTL sha256 {spec['provenance']['sha256']}; "

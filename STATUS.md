@@ -314,6 +314,12 @@ Node-graph generation toolchain (decided, verified 2026-10):
   one deterministic "OpenDRT" catalog (uuid 68af1827, uuid5);
   dist/blender_assets.cats.txt sidecar carries it; branch/fn/dgpw/vdot
   groups stay unmarked; fake-user uniform on all 33 groups.
+- Interface output order (2026-10-26 user decision): sRGB Display is the
+  FIRST output on the main group and every preset wrapper - a node dragged
+  into an existing wire auto-links to sRGB (the common target). DCTL enc
+  semantics are untouched: OUTPUTS stays spec-order (branch wiring keys on
+  the index; new OUTPUT_UI_ORDER drives interface creation); rt_smoke
+  asserts the UI order and resolves enc indexes to sockets BY NAME.
 - Remote asset pack (2026-10-26 user decision; Blender manual
   remote_asset_libraries.html): generate_asset_pack() runs
   `blender -b -c asset_listing generate dist` after the blend+sidecar
