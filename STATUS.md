@@ -215,11 +215,13 @@ Node-graph generation toolchain (decided, verified 2026-10):
   eotf, tn_su, ts_dsc instance, CAT matrix family, cwp_norm ladder); crv
   overlay omitted (crv_enable baked 0); functions inlined flat; matrix ops
   = flat 9x mul-add; literals cast float32 at emission.
-- **All remaining UI params (~69) exposed** as group-input sockets with
+- **All remaining UI params (~68) exposed** as group-input sockets with
   defaults = the standard preset's resolved values (extract from
   spec.selection), organized in collapsible panels, high-level artistic
   knobs first. NOT exposed: in_gamut/in_oetf/tn_su/display_gamut/eotf/
-  crv_enable + the 3 preset combos.
+  crv_enable + the 3 preset combos; 2026-10-27: also `_pt_enable`
+  ("Enable Purity Compress High") - defunct upstream, see the 2026-10-27
+  wave note.
 - Preset selectors (Look/Tonescale ladders): DEFERRED; later as wrapping
   node groups. v1 = standard look only.
 - Build/deps rule: ALL build tooling lives in the pixi env (g++ added as
@@ -460,6 +462,35 @@ Nested-group perf rework (user plan, this wave):
    VectorMath; parity-safe for add/sub/mul/div), branch-group instance
    parallelization (per-tree emission is context-isolated already).
 
+
+### Socket-inventory fix (2026-10-27)
+
+"Enable Purity Compress High" (`_pt_enable`, DCTL 59) removed from the node
+UI (user decision): it controlled nothing.
+
+- **Evidence:** the v1.1.0 DCTL never reads it - `if (pt_enable` has zero
+  matches; the Purity Compression block (1104-1114) is unconditional; every
+  look chain hard-codes `pt_enable = 1` (the non-preset INIT_PARAMS path only
+  copies `_pt_enable` into the likewise-unread `pt_enable`). In the shipped
+  .blend, the checkbox's group-input value had no consumer inside "OpenDRT
+  1.1 Base" (wrapper preset nodes merely forwarded it into that dead end),
+  i.e. a value that cannot affect any output - exactly the greyed-out
+  behavior observed in Blender (probe: tools/probes/probe_pt_enable.py).
+- **Change:** row dropped from SOCKET_TABLE + Purity Compress panel;
+  SOCKET_TABLE contract count 69 -> 68 (build_nodes.py + rt_smoke.py);
+  asset description "68 parameter sockets"; build_preset_groups now allowlists
+  DROPPED_PARAMS = {"pt_enable"} because spec look chains legitimately list it
+  (its value is irrelevant by construction); the audit's zero-use dev-note
+  became a generic straggler tripwire pointing at DROPPED_PARAMS.
+- **Verification:** dist + local-pack rebuilds green, zero dev-notes (no
+  unread exposed params remain); probe: REMOVED EVERYWHERE (33 trees; live
+  control "Enable Mid Purity" still consumed in all 8 user-facing groups);
+  rt_smoke FULL suite under the 5.3.0 Beta binary with --parity all: RESULT
+  PASS, 0 FAIL - interface audits (floats=57 bools=10 ints=1, wrapper
+  forwarding 69/69 = Image + 68 params), smoke render bands/samples
+  unchanged, ramp parity vs the compiled-DCTL oracle unchanged (look enc0
+  ramps <= 4.8e-07; Base enc0..8 ramps max 8.2e-06, gate 1e-04 - numbers
+  identical to the pre-change baseline since the socket fed no math).
 
 Provenance rule: any committed spec JSON must carry tag + commit + source
 sha256 that match the DCTL actually parsed. Do not regenerate lazily and

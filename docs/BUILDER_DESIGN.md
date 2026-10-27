@@ -11,7 +11,7 @@ Eight Blender **CompositorNodeTree** node groups (§0a): the main
 `OpenDRT 1.1 Base`
 (`bpy.data.node_groups.new(...)`) in a .blend asset. Interface: input socket
 `Image (Linear CIE XYZ D65)` (NodeSocketColor; tooltip: values used as-is, no
-color-management conversion) + 69 input sockets (§E) + **9 color OUTPUT
+color-management conversion) + 68 input sockets (§E) + **9 color OUTPUT
 sockets**, one per display_encoding preset (§F). Interior: flat `ShaderNodeMath`/
 `ShaderNodeMix` graph [measured names in PROBE_REPORT §math: ShaderNodeCompare
 does NOT exist; equality = ShaderNodeMath `COMPARE` op] — no nested groups, no
@@ -312,7 +312,7 @@ divisors f32(1.0+0.05f·su): 0x3F866666 (su=1), 0x3F8CCCCD (su=2), 1.0 (su=0);
 Estimated size: ≈370 nodes/branch ×9 → **~3.4k nodes** [INFERENCE; Build wave
 re-measures; dgpw ≈90-115, contrast_high ≈20, hlg ≈60, pq ≈36].
 
-## E. Socket table (69 inputs)
+## E. Socket table (68 inputs)
 
 Socket types per DCTL control: check_box→Bool, slider_float→Float,
 enum (_cwp)→**Int 0..5** (2026-10-26 user decision: integer socket for
@@ -329,6 +329,10 @@ value, hex col, f32-exact) **overridden by §0a**: main carries the Base
 look chain (DCTL 779-781), preset copies carry their own chain; the 5
 non-chain knobs use the `_`-param UI defines (DCTL 17-20, 828). UI
 min/max/step from the `_`-param defines → socket description.
+Excluded (2026-10-27, user decision): `_pt_enable` "Enable Purity Compress
+High" (DCTL 59) — the DCTL presets write `pt_enable` (759+) but no stage
+reads it (purity compression is unconditional, 1104-1114), so exposing it
+was a dead, greyed-out checkbox; the node omits it (DROPPED_PARAMS, D8).
 
 | socket (name) | id | kind | f32 default (hex) | min/max/step | src |
 |---|---|---|---|---|---|
@@ -351,7 +355,6 @@ min/max/step from the `_`-param defines → socket description.
 | Render Space Strength | _rs_sa | float | 0.3499999940395355 (0x3EB33333) | 0..0.6/0.006 | 56 |
 | Render Space Weight R | _rs_rw | float | 0.25 | 0..0.8/0.008 | 57 |
 | Render Space Weight B | _rs_bw | float | 0.550000011920929 (0x3F0CCCCD) | 0..0.8/0.008 | 58 |
-| Enable Purity Compress High | _pt_enable | bool | 1 | 0/1 | 59 |
 | Purity Limit Low | _pt_lml | float | 0.25 | 0..1/0.01 | 60 |
 | Purity Limit Low R | _pt_lml_r | float | 0.5 | 0..1/0.01 | 61 |
 | Purity Limit Low G | _pt_lml_g | float | 0.0 | 0..1/0.01 | 62 |
@@ -430,7 +433,7 @@ description keyword-only):
 | 2 | Creative White | Creative White, Creative White Limit |
 | 3 | Look (Tonescale Contrast) | Enable Contrast High, Contrast High, Contrast High Pivot, Contrast High Strength, Enable Contrast Low, Contrast Low, Contrast Low Width |
 | 4 | Saturation | Render Space Strength, Render Space Weight R, Render Space Weight B |
-| 5 | Purity Compress | HDR Purity, Enable Purity Compress High, Purity Limit Low, Low R, Low G, Low B, Purity Limit High, High R, High B, Enable Purity Softclip, Softclip C, M, Y, Enable Mid Purity, Mid Purity Low, Low Range, Low Strength, Mid Purity High, High Range, High Strength |
+| 5 | Purity Compress | HDR Purity, Purity Limit Low, Low R, Low G, Low B, Purity Limit High, High R, High B, Enable Purity Softclip, Softclip C, M, Y, Enable Mid Purity, Mid Purity Low, Low Range, Low Strength, Mid Purity High, High Range, High Strength |
 | 6 | Brilliance | Enable Brilliance, Brilliance, R, G, B, Brilliance Range, Brilliance Strength, Enable Post Brilliance, Brilliance Post, Post R, Post G, Post B |
 | 7 | Hue Shifts | Enable Hue Contrast, Hue Contrast R, Range, Enable Hueshift RGB, Hueshift R, R Range, G, G Range, B, B Range, Enable Hueshift CMY, Hueshift C, C Range, M, M Range, Y, Y Range |
 | 8 | Advanced | Clamp |
@@ -478,5 +481,5 @@ Hand-verified against `reference/OpenDRT_v1.1.0.dctl`:
 DCTL (0.0f = measured Blender DIVIDE-by-0). Math-op semantics were
 **measured** (docs/PROBE_REPORT.md §math: 40-op enum, COMPARE epsilon input,
 DIVIDE/0=0, POWER(neg,frac)=0, MODULO=fmod, CPU==GPU) and are folded into §B
-rows. All 8 statement kinds and all 61 operator atoms have mapping rows; all 69
+rows. All 8 statement kinds and all 61 operator atoms have mapping rows; all 68
 sockets have concrete f32 defaults.

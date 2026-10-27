@@ -100,7 +100,7 @@ check("input-count",
            if i.socket_type in ("COLOR", "NodeSocketColor")]) == 1,
       f"{len([i for i in ins
               if i.socket_type in ('COLOR', 'NodeSocketColor')])}")
-check("param-count", len(floats) + len(bools) + len(ints) == 69,
+check("param-count", len(floats) + len(bools) + len(ints) == 68,
       f"floats={len(floats)} bools={len(bools)} ints={len(ints)}")
 check("int-socket-is-cwp", len(ints) == 1
       and ints[0].name == "Creative White"

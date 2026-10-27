@@ -12,7 +12,7 @@ NO node layout - the group interior is compiler output, not a reading aid):
     "OpenDRT 1.1 [look]" = one Base instance, inputs forwarded 1:1):
     interface = 1 input "Image" (NodeSocketColor = the compositor working
     space; converted in-tree to linear CIE-XYZ D65 by the 'raw2xyz' Convert
-    Color Space node) + 69 parameter sockets + 9 color outputs (one per
+    Color Space node) + 68 parameter sockets + 9 color outputs (one per
     display encoding; selection = which output is linked; per-output lazy
     evaluation, PROBE_REPORT §2); interior = 'raw2xyz' Convert Color Space
     -> SeparateColor at the Image entry + tonescale cluster (src 943-960
@@ -80,8 +80,12 @@ by the build log):
   D7  §C folded constants attach as unconnected-input default_value (0 extra
       nodes); the "#c{k}" naming applies only to materialized constant
       nodes, which v1 emission does not need.
-  D8  §E/§F socket inventory = §E table (68 rows) + "HDR Purity" (pt_hdr,
-      §F panel 5 note; DCTL 19) = 69 parameter sockets total.
+  D8  §E/§F socket inventory = §E table (67 rows) + "HDR Purity" (pt_hdr,
+      §F panel 5 note; DCTL 19) = 68 parameter sockets total. `_pt_enable`
+      ("Enable Purity Compress High") is excluded (2026-10-27 user
+      decision): the DCTL preset chain writes pt_enable (759+) but no stage
+      reads it - purity compression is unconditional (1104-1114) - so the
+      checkbox controlled nothing; exposing it shipped a dead knob.
   D9  §B.6 cwp ladders: acc starts at candidate 0; fires are the DCTL arms'
       own conditions (eq cwp k / ge cwp 2), mutually exclusive for reachable
       integer cwp; a fractional cwp resolves to the candidate-0 arm
@@ -211,8 +215,12 @@ def is_crv_stmt(st):
 
 
 # --------------------------------------------------------------------------
-# Socket inventory - transcribed from docs/BUILDER_DESIGN.md §E (68 rows) plus
-# HDR Purity (§F panel 5 note; DCTL 19) = 69 parameter sockets. Cross-checked
+# Socket inventory - transcribed from docs/BUILDER_DESIGN.md §E (67 rows) plus
+# HDR Purity (§F panel 5 note; DCTL 19) = 68 parameter sockets. `_pt_enable`
+# ("Enable Purity Compress High", DCTL 59) is NOT exposed: the DCTL never
+# reads it (purity compression is unconditional, 1104-1114; every preset
+# hard-codes pt_enable = 1), so exposing it would ship a dead control.
+# Cross-checked
 # against spec.parameters (label/min/max/step) and default sources at build
 # time; ANY mismatch fails the build loudly.
 #   (socket_name, ui_param_id, kind, f32 default hex-or-num, min, max, step, src)
@@ -238,7 +246,6 @@ SOCKET_TABLE = [
     ("Render Space Strength", "_rs_sa", "float", "0x3EB33333", 0.0, 0.6, 0.006, "56"),
     ("Render Space Weight R", "_rs_rw", "float", "0x3E800000", 0.0, 0.8, 0.008, "57"),
     ("Render Space Weight B", "_rs_bw", "float", "0x3F0CCCCD", 0.0, 0.8, 0.008, "58"),
-    ("Enable Purity Compress High", "_pt_enable", "bool", 1, 0, 1, 1, "59"),
     ("Purity Limit Low", "_pt_lml", "float", "0x3E800000", 0.0, 1.0, 0.01, "60"),
     ("Purity Limit Low R", "_pt_lml_r", "float", "0x3F000000", 0.0, 1.0, 0.01, "61"),
     ("Purity Limit Low G", "_pt_lml_g", "float", "0x00000000", 0.0, 1.0, 0.01, "62"),
@@ -295,6 +302,11 @@ def ui_to_internal(ui):
     return ui[1:] if ui.startswith("_") else ui
 
 
+DROPPED_PARAMS = {"pt_enable"}  # defunct: DCTL writes it (presets, 759+) but
+# never reads it (purity compression is unconditional, 1104-1114); excluded
+# from SOCKET_TABLE/DROPPED from look-chain validation.
+
+
 # Panel layout (design §F): (panel name, [ui ids in order], open?, description)
 PANELS = [
     ("Exposure & Tonescale",
@@ -314,7 +326,7 @@ PANELS = [
     ("Saturation", ["_rs_sa", "_rs_rw", "_rs_bw"], False,
      "Render-space saturation strength and per-channel weights (rs_*)."),
     ("Purity Compress",
-     ["pt_hdr", "_pt_enable", "_pt_lml", "_pt_lml_r", "_pt_lml_g",
+     ["pt_hdr", "_pt_lml", "_pt_lml_r", "_pt_lml_g",
       "_pt_lml_b", "_pt_lmh", "_pt_lmh_r", "_pt_lmh_b", "_ptl_enable",
       "_ptl_c", "_ptl_m", "_ptl_y", "_ptm_enable", "_ptm_low",
       "_ptm_low_rng", "_ptm_low_st", "_ptm_high", "_ptm_high_rng",
@@ -1585,9 +1597,9 @@ class Builder:
         if len(labels) != len(set(labels)):
             dupes = {l for l in labels if labels.count(l) > 1}
             raise BuildError(f"duplicate socket names: {dupes}")
-        if len(SOCKET_TABLE) != 69:
+        if len(SOCKET_TABLE) != 68:
             raise BuildError(f"socket table has {len(SOCKET_TABLE)} rows; "
-                             f"contract = 69")
+                             f"contract = 68")
         panel_ids = [i for _, ids, _, _ in PANELS for i in ids]
         table_ids = [r[1] for r in SOCKET_TABLE]
         if sorted(panel_ids) != sorted(table_ids):
@@ -1676,7 +1688,9 @@ class Builder:
         the wrapper's own interface defaults. Math-exact: DCTL look chains
         (758-781) set only exposed params, tonescale combos (787-825) set
         merely contrast knobs, "USE LOOK PRESET" is a no-op, and clamp=1
-        is hard-coded in presets mode."""
+        is hard-coded in presets mode. DROPPED_PARAMS: spec look chains may
+        set inventory-dropped params (D8); those values are irrelevant by
+        construction (unread) and simply do not get a socket."""
         # spec look entries are keyed by internal param names (tn_con);
         # table ids are underscored (_tn_con) - bridge via ui_to_internal.
         chain_ids = {ui_to_internal(r[1]) for r in SOCKET_TABLE}
@@ -1684,7 +1698,7 @@ class Builder:
         for entry in self.spec["selection"]["look"]["entries"]:
             if entry["name"] == "Base":
                 continue
-            extra = set(entry["values"]) - chain_ids
+            extra = set(entry["values"]) - chain_ids - DROPPED_PARAMS
             if extra:
                 raise BuildError(f"look preset '{entry['name']}' sets "
                                  f"non-node parameters: {sorted(extra)}")
@@ -1870,14 +1884,13 @@ class Builder:
         issues = []
         for var in self.socket_vars:
             if self.socket_uses.get(var, 0) == 0:
-                # spec facts: `_pt_enable` is assigned in the preset chain but
-                # never read by the v1.1.0 transform (verified vs the DCTL:
-                # only line 59/746/759+ mentions). The socket stays exposed
-                # per design §E; its reads are simply absent upstream.
+                # defunct DCTL v1.1.0 params (e.g. _pt_enable, excluded
+                # from SOCKET_TABLE) must not resurface as dead knobs; a
+                # straggler here means the spec grew an unread param.
                 self.dev_notes.append(
                     f"parameter '{var}' is exposed but unread by the "
-                    "transform (defunct in DCTL v1.1.0; socket kept per "
-                    "design §E)")
+                    "transform (defunct upstream; drop it from "
+                    "SOCKET_TABLE)")
         # R-14 (all trees): no Color (RGBA) socket may feed Math / float-Mix
         for tree in self.all_trees:
             for lk in tree.links:
@@ -2051,7 +2064,7 @@ def main(argv=None):
             f"node group{preset_note}; 9 output branches (one per display "
             "encoding; select by linking an output, sRGB Display first "
             "= the default drag-into-place output), 1 image input (the "
-            "scene's linear working space; converted in-tree) + 69 "
+            "scene's linear working space; converted in-tree) + 68 "
             "parameter sockets. Provenance: spec sha256 "
             f"{spec_sha}; source DCTL sha256 {spec['provenance']['sha256']}; "
             f"tag {spec['provenance']['tag']} commit "
