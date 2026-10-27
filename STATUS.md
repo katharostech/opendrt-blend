@@ -318,9 +318,12 @@ Node-graph generation toolchain (decided, verified 2026-10):
   remote_asset_libraries.html): generate_asset_pack() runs
   `blender -b -c asset_listing generate dist` after the blend+sidecar
   write (cleanroom XDG tmpdirs - user caches break the generator),
-  re-asserts _asset-library-meta.json name/contact (env-overridable via
-  OPENDRT_PACK_*), asserts the index's catalog == our uuid5, and writes
-  index.html. Local dist also works as a LOCAL asset library (sidecar);
+  OPENDRT_PACK_*), asserts the index's catalog == our uuid5. The landing
+  page is the repo-root index.html, copied verbatim into dist by
+  build_nodes.py (2026-10-26: was inline-template-generated in the build
+  script; the OPENDRT_PACK_URL template hook was dropped - the URL now
+  lives directly in the editable file). Local dist also works as a
+  LOCAL asset library (sidecar);
   as a REMOTE pack it is the Pages web root.
 - GitHub Pages deployment: .github/workflows/deploy-asset-pack.yml
   (push main / manual): checkout -> setup-pixi (frozen) -> blender

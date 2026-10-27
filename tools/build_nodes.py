@@ -44,8 +44,9 @@ NO node layout - the group interior is compiler output, not a reading aid):
     main group is the sole asset; the "OpenDRT" catalog sidecar
     (blender_assets.cats.txt) is written beside the file, as is the
     remote-asset-pack listing (_asset-library-meta.json, _v1/
-    asset-index.json) + index.html when a blender binary is available
-    (BLENDER_BIN); GitHub Pages deploys dist/ via
+    asset-index.json) when a blender binary is available (BLENDER_BIN);
+    the landing page is the repo-root index.html, copied verbatim into
+    the dist web root. GitHub Pages deploys dist/ via
     .github/workflows/deploy-asset-pack.yml. Blend-byte
     determinism is explicitly not a goal (see STATUS.md).
 
@@ -1892,7 +1893,6 @@ class Builder:
 
 
 PACK_NAME = "OpenDRT"
-PACK_PAGES_URL = "https://zicklag.github.io/blender-opendrt/"
 PACK_CONTACT = {
     "name": "Zicklag",
     "url": "https://github.com/zicklag/blender-opendrt/",
@@ -1951,24 +1951,6 @@ def generate_asset_pack(out_path):
             "simple_name": "OpenDRT"}]:
         raise BuildError(f"asset index catalogs drifted: "
                          f"{index.get('catalogs')}")
-    url = os.environ.get("OPENDRT_PACK_URL", PACK_PAGES_URL)
-    out_dir.joinpath("index.html").write_text(
-        """<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<title>OpenDRT - Blender remote asset library</title></head>
-<body>
-<h1>OpenDRT</h1>
-<p>OpenDRT display transform as native Blender
-compositor node groups, served as a Blender remote asset library.</p>
-<p>Add it in Blender: <em>Preferences &rarr; Asset Libraries &rarr; add an
-online asset library</em> with URL <code>%s</code>. Then add the
-&ldquo;OpenDRT 1.1 &hellip;&rdquo; node groups from the asset browser, the
-compositor asset shelf, or the Add search menu.</p>
-<p><a href="_asset-library-meta.json">library metadata</a> &middot;
-<a href="_v1/asset-index.json">asset index</a> &middot;
-<a href="https://github.com/zicklag/blender-opendrt/">source</a>
-</body></html>
-""" % url)
     print(f"asset pack: {index['asset_count']} assets, listing v1 index sha "
           f"{meta['api_versions']['v1']['hash']} -> _asset-library-meta.json",
           flush=True)
@@ -2097,6 +2079,14 @@ def main(argv=None):
     print(f"catalog {catalog_id} 'OpenDRT' -> blender_assets.cats.txt",
           flush=True)
     generate_asset_pack(out_path)
+    # Landing page: the editable repo-root index.html copied verbatim
+    # into the dist web root (Pages serves dist/ as its root).
+    index_src = Path(__file__).resolve().parent.parent / "index.html"
+    if not index_src.is_file():
+        raise BuildError(f"missing landing page: {index_src}")
+    out_path.parent.joinpath("index.html").write_bytes(
+        index_src.read_bytes())
+    print(f"index.html -> {out_path.parent / 'index.html'}", flush=True)
     print(f"spec sha256 {spec_sha}", flush=True)
     print(f"DCTL sha256 {spec['provenance']['sha256']}", flush=True)
     print(f"groups written: {len(bpy.data.node_groups)}", flush=True)
