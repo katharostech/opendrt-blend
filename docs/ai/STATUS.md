@@ -537,3 +537,12 @@ new; historical entries above use old names):
 - Agent docs location is now `docs/ai/` (user decision) - new logs/probe
   docs belong there; `docs/ai/BUILD.md` documents the pixi tasks + build
   flow.
+
+## Panel reorder 2026-10-27 (user)
+
+"Look (Tonescale Contrast)" now sits directly after "Exposure &
+Tonescale"; "Creative White" moved after it. Blender-side only
+(`build_nodes.py:PANELS`; rt_smoke's `expected_panels` asserts the new
+order). Also: both workflows gained a `generate-spec` step before their
+build step - CI checkouts have no `build/spec/`, which broke every run
+since the relayout.

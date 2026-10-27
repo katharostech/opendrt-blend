@@ -101,8 +101,8 @@ check("int-socket-is-cwp", len(ints) == 1
 check("output-count", len(colors_out) == 9, f"{len(colors_out)}")
 check("panel-count", len(panels) == 8, f"{len(panels)}")
 panel_names = [p.name for p in panels]
-expected_panels = ["Exposure & Tonescale", "Creative White",
-                   "Look (Tonescale Contrast)", "Saturation",
+expected_panels = ["Exposure & Tonescale", "Look (Tonescale Contrast)",
+                   "Creative White", "Saturation",
                    "Purity Compress", "Brilliance", "Hue Shifts", "Advanced"]
 check("panel-names-order", panel_names == expected_panels, str(panel_names))
 if panels:

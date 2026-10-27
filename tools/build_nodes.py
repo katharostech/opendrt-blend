@@ -308,22 +308,23 @@ DROPPED_PARAMS = {"pt_enable"}  # defunct: DCTL writes it (presets, 759+) but
 # from SOCKET_TABLE/DROPPED from look-chain validation.
 
 
-# Panel layout (design §F): (panel name, [ui ids in order], open?, description)
+# Panel layout (design §F; Look follows Exposure & Tonescale, 2026-10-27
+# user decision): (panel name, [ui ids in order], open?, description)
 PANELS = [
     ("Exposure & Tonescale",
      ["tn_Lp", "tn_Lg", "tn_gb", "_tn_con", "_tn_sh", "_tn_toe", "_tn_off"],
      True,
      "Tonescale shape: peak/grey display luminance, HDR grey boost, "
      "contrast, shoulder, toe, offset (tn_*; OpenDRT tonescale constraint)."),
-    ("Creative White", ["_cwp", "_cwp_lm"], False,
-     "Creative white: 0=D93 ... 5=D50 (DCTL stickshift combo maps the socket "
-     "directly 0..5; default 2 = D65). Limit scales how far chroma shifts."),
     ("Look (Tonescale Contrast)",
      ["_tn_hcon_enable", "_tn_hcon", "_tn_hcon_pv", "_tn_hcon_st",
       "_tn_lcon_enable", "_tn_lcon", "_tn_lcon_w"],
      False,
      "High/low extra-contrast modules (DCTL look contrast hcon/lcon; both "
      "disabled by default with the Standard look)."),
+    ("Creative White", ["_cwp", "_cwp_lm"], False,
+     "Creative white: 0=D93 ... 5=D50 (DCTL stickshift combo maps the socket "
+     "directly 0..5; default 2 = D65). Limit scales how far chroma shifts."),
     ("Saturation", ["_rs_sa", "_rs_rw", "_rs_bw"], False,
      "Render-space saturation strength and per-channel weights (rs_*)."),
     ("Purity Compress",
