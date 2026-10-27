@@ -44,11 +44,12 @@ NO node layout - the group interior is compiler output, not a reading aid):
     main group is the sole asset; the "OpenDRT" catalog sidecar
     (blender_assets.cats.txt) is written beside the file, as is the
     remote-asset-pack listing (_asset-library-meta.json, _v1/
-    asset-index.json) when a blender binary is available (BLENDER_BIN);
-    the landing page is the repo-root index.html, copied verbatim into
-    the dist web root. GitHub Pages deploys dist/ via
-    .github/workflows/deploy-asset-pack.yml. Blend-byte
-    determinism is explicitly not a goal (see STATUS.md).
+    asset-index.json) - listing generated IN-PROCESS from the bpy wheel
+    (_bpy_internal, no blender binary needed) - and the landing page
+    (repo-root index.html copied verbatim; GitHub Pages deploys dist/
+    via .github/workflows/deploy-asset-pack.yml). --local skips the
+    listing + landing: blend + sidecar only (release-local-pack.yml zip).
+    Blend-byte determinism is explicitly not a goal (see STATUS.md).
 
 Measured-semantics reconciliations (design doc + measurements; also printed
 by the build log):
@@ -1912,35 +1913,23 @@ PACK_CONTACT = {
 def generate_asset_pack(out_path):
     """Generate the remote-asset-library listing + metadata into the
     blend's directory (Blender manual: files/asset_libraries/
-    remote_asset_libraries.html). Needs a blender binary (BLENDER_BIN or
-    PATH); skipped with a note otherwise. Blender's listing generator
-    retains the meta's name/contact on re-runs; we re-assert them every
-    build so CI and checkouts converge."""
+    remote_asset_libraries.html). Runs IN-PROCESS from the bpy wheel:
+    _bpy_internal.assets.remote_library.asset_listing_main is the
+    pure-Python generator behind `blender -c asset_listing` (measured
+    byte-identical to the binary CLI; blender binary no longer needed).
+    It caches .blend file hashes under bpy.app.cachedir, which
+    therefore must be writable. The generator retains the meta's
+    name/contact on re-runs; we re-assert them every build so CI and
+    checkouts converge."""
     import os
-    import shutil
-    import subprocess
-    import tempfile
 
-    bin_path = os.environ.get("BLENDER_BIN") or shutil.which("blender")
-    if not bin_path:
-        print("asset pack listing: skipped (no blender binary; set "
-              "BLENDER_BIN)", flush=True)
-        return
     out_dir = out_path.parent
-    # cleanroom XDG dirs: the listing must not read user prefs and fails
-    # on read-only/user caches (measured: PermissionError mkdir in the
-    # generator's startup cache init)
-    xdg_root = Path(tempfile.mkdtemp(prefix="opendrt-listing-"))
-    env = dict(os.environ)
-    for var in ("XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME"):
-        env[var] = str(xdg_root / var.lower().split("_")[1])
-        Path(env[var]).mkdir(parents=True, exist_ok=True)
-    proc = subprocess.run(
-        [bin_path, "-b", "-c", "asset_listing", "generate", str(out_dir)],
-        capture_output=True, text=True, env=env)
-    if proc.returncode != 0:
-        raise BuildError(f"asset listing generator failed: "
-                         f"{proc.stderr[-400:]}")
+    from _bpy_internal.assets import remote_library
+    # -q: match the old subprocess log shape (generator INFO logs were
+    # captured); on failure asset_listing_main prints the traceback.
+    rc = remote_library.asset_listing_main(["-q", "generate", str(out_dir)])
+    if rc != 0:
+        raise BuildError(f"asset listing generator failed (rc={rc})")
     meta_path = out_dir / "_asset-library-meta.json"
     index_path = out_dir / "_v1" / "asset-index.json"
     meta = json.loads(meta_path.read_text())
@@ -1967,6 +1956,10 @@ def generate_asset_pack(out_path):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
+    ap.add_argument("--local", action="store_true",
+                    help="LOCAL asset pack: blend + catalog sidecar only "
+                         "(skip the remote-asset-library listing and the "
+                         "index.html landing page)")
     ap.add_argument("--spec", default="spec/opendrt-v1.1.0.json")
     ap.add_argument("--out", default="dist/OpenDRT_v1.1.0.blend")
     args = ap.parse_args(argv)
@@ -2088,15 +2081,18 @@ def main(argv=None):
         f"{catalog_id}:OpenDRT:OpenDRT\n")
     print(f"catalog {catalog_id} 'OpenDRT' -> blender_assets.cats.txt",
           flush=True)
-    generate_asset_pack(out_path)
-    # Landing page: the editable repo-root index.html copied verbatim
-    # into the dist web root (Pages serves dist/ as its root).
-    index_src = Path(__file__).resolve().parent.parent / "index.html"
-    if not index_src.is_file():
-        raise BuildError(f"missing landing page: {index_src}")
-    out_path.parent.joinpath("index.html").write_bytes(
-        index_src.read_bytes())
-    print(f"index.html -> {out_path.parent / 'index.html'}", flush=True)
+    if args.local:
+        print("local asset pack: listing + index.html skipped", flush=True)
+    else:
+        generate_asset_pack(out_path)
+        # Landing page: the editable repo-root index.html copied verbatim
+        # into the dist web root (Pages serves dist/ as its root).
+        index_src = Path(__file__).resolve().parent.parent / "index.html"
+        if not index_src.is_file():
+            raise BuildError(f"missing landing page: {index_src}")
+        out_path.parent.joinpath("index.html").write_bytes(
+            index_src.read_bytes())
+        print(f"index.html -> {out_path.parent / 'index.html'}", flush=True)
     print(f"spec sha256 {spec_sha}", flush=True)
     print(f"DCTL sha256 {spec['provenance']['sha256']}", flush=True)
     print(f"groups written: {len(bpy.data.node_groups)}", flush=True)

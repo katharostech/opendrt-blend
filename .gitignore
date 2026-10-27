@@ -1,3 +1,5 @@
 **/__pycache__
 .pixi
 /dist/
+/local-pack/
+/OpenDRT-local-asset-pack.zip

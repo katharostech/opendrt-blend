@@ -27,12 +27,9 @@ jobs:
         with:
           frozen: true
 
-      - name: Download Blender 5.2.3 LTS (asset listing generator)
-        run: |
-          curl -sSL --retry 3 -o /tmp/blender.tar.xz \
-            https://download.blender.org/release/Blender5.2/blender-5.2.3-linux-x64.tar.xz
-          tar -xf /tmp/blender.tar.xz -C /tmp
-          echo "BLENDER_BIN=/tmp/blender-5.2.3-linux-x64/blender" >> "$GITHUB_ENV"
+      # Blend + listing + landing page all from the pixi env: the remote
+      # listing generator is pure Python (_bpy_internal), called in-process
+      # from the same bpy wheel - no Blender binary needed.
 
       - name: Build blend + asset pack listing
         run: pixi run build-nodes

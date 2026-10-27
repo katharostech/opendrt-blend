@@ -321,20 +321,37 @@ Node-graph generation toolchain (decided, verified 2026-10):
   the index; new OUTPUT_UI_ORDER drives interface creation); rt_smoke
   asserts the UI order and resolves enc indexes to sockets BY NAME.
 - Remote asset pack (2026-10-26 user decision; Blender manual
-  remote_asset_libraries.html): generate_asset_pack() runs
-  `blender -b -c asset_listing generate dist` after the blend+sidecar
-  write (cleanroom XDG tmpdirs - user caches break the generator),
-  OPENDRT_PACK_*), asserts the index's catalog == our uuid5. The landing
+  remote_asset_libraries.html): generate_asset_pack() runs the indexing
+  generator IN-PROCESS from the bpy wheel - the pure-Python
+  `_bpy_internal.assets.remote_library.asset_listing_main(['-q',
+  'generate', dist])` registered by core bl_pkg as `blender -c
+  asset_listing` (2026-10-26 user decision after the switch was
+  validated: wheel 5.2.3 in-process output measured BYTE-IDENTICAL to
+  the 5.3 beta binary CLI on identical input; no Blender download in
+  CI; needs a writable bpy.app.cachedir - set XDG_CACHE_HOME before
+  `import bpy` if the cache root is unwritable) - after the
+  blend+sidecar write, re-asserts _asset-library-meta.json name/contact
+  (env-overridable via OPENDRT_PACK_*), asserts the index's catalog ==
+  our uuid5. The landing
   page is the repo-root index.html, copied verbatim into dist by
   build_nodes.py (2026-10-26: was inline-template-generated in the build
   script; the OPENDRT_PACK_URL template hook was dropped - the URL now
   lives directly in the editable file). Local dist also works as a
   LOCAL asset library (sidecar);
   as a REMOTE pack it is the Pages web root.
+- Local asset-pack release pipeline (2026-10-26 user decision): push to
+  main rebuilds a LOCAL pack (blend + blender_assets.cats.txt only - no
+  remote-listing files; build_nodes.py --local / pixi run
+  build-local-pack) into local-pack/OpenDRT_v1.1.0/, zips it (one
+  top-level dir) and recreates the rolling 'latest' release with asset
+  OpenDRT-local-asset-pack.zip (.github/workflows/
+  release-local-pack.yml; no Blender download needed - bpy wheel only;
+  remote pack -> Pages unchanged in deploy-asset-pack.yml).
 - GitHub Pages deployment: .github/workflows/deploy-asset-pack.yml
-  (push main / manual): checkout -> setup-pixi (frozen) -> blender
-  5.2.3 LTS download (asset listing needs the binary) -> pixi run
-  build-nodes -> configure-pages + upload dist -> deploy-pages. Pack
+  (push main / manual): checkout -> setup-pixi (frozen) ->
+  build-nodes (no Blender download: blend + listing + landing all from
+  the bpy wheel; listing in-process via _bpy_internal) -> configure-pages
+  + upload dist -> deploy-pages. Pack
   URL: https://zicklag.github.io/blender-opendrt/ (add in Blender:
   Preferences -> Asset Libraries -> online library with that URL).
   Asset descriptions now say "1 image input (the scene's linear working

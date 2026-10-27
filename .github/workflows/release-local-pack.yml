@@ -1,0 +1,54 @@
+name: Release OpenDRT local asset pack
+
+# Rolling "latest" release: rebuilt and re-uploaded on every push to main.
+# The asset is a LOCAL Blender asset pack (the .blend + the
+# blender_assets.cats.txt sidecar - no remote-asset-library listing files).
+# The remote (online) asset pack lives in deploy-asset-pack.yml -> Pages.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-local-pack
+  cancel-in-progress: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pixi (locked env with bpy 5.2.3 wheel)
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          frozen: true
+
+      # --local skips the remote-listing step; in either case no Blender
+      # binary is needed anywhere (blend is built with the bpy wheel).
+      - name: Build local asset pack (blend + catalog sidecar)
+        run: pixi run build-local-pack
+
+      # Zip: one top-level dir, so unpacking yields a ready asset-library
+      # folder (point Blender here).
+      - name: Zip pack
+        run: |
+          cd local-pack
+          zip -r ../opendrt-blend.zip OpenDRT_v1.1.0
+
+      # Rolling release: delete + recreate so the `latest` tag tracks HEAD.
+      - name: Publish rolling 'latest' release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --cleanup-tag --yes || true
+          {
+            echo 'This release contains a blender asset pack containing the OpenDRT compositor nodes. Unzip the pack and add it to your list of Blender asset packs to install it.'
+          } | gh release create latest --latest --target "$GITHUB_SHA" \
+            --title 'Asset Pack' --notes-file - \
+            opendrt-blend.zip
