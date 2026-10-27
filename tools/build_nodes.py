@@ -1704,11 +1704,13 @@ class Builder:
                                  f"non-node parameters: {sorted(extra)}")
             pre = bpy.data.node_groups.new(PRESET_PREFIX + entry["name"],
                                            "CompositorNodeTree")
+            pre.default_group_node_width = 240  # user-facing preset node
             self.build_interface(tree=pre, preset_vals=entry["values"])
             gin = pre.nodes.new("NodeGroupInput")
             inst = pre.nodes.new("CompositorNodeGroup")
             inst.name = "base"
             inst.node_tree = ng
+            inst.width = 240.0  # inner copy of the Base node
             gout = pre.nodes.new("NodeGroupOutput")
             for it in pre.interface.items_tree:
                 if it.item_type != "SOCKET":
@@ -1993,6 +1995,7 @@ def main(argv=None):
                  spec["selection"]["look"]["entries"]}
     base_vals = look_vals["Base"]
     ng = bpy.data.node_groups.new(GROUP_NAME, "CompositorNodeTree")
+    ng.default_group_node_width = 240  # width of user-facing instances
     b.push_ctx(ng, "bS")
     print("PHASE: interface", flush=True)
     # The main group defaults to the official "Base" look (user decision

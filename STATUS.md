@@ -492,6 +492,15 @@ UI (user decision): it controlled nothing.
   ramps <= 4.8e-07; Base enc0..8 ramps max 8.2e-06, gate 1e-04 - numbers
   identical to the pre-change baseline since the socket fed no math).
 
+- **Follow-up (same day): user-facing node width = 240.** The 8 asset
+  groups set `default_group_node_width = 240` (stock 140; wrapper trees in
+  build_preset_groups also set their inner "base" instance `width = 240`
+  explicitly). Internal fn/branch/dgpw/vdot trees keep 140. Verified:
+  rebuilt blends + probe_width ALL 240 OK (tree defaults, wrapper inner
+  instance, fn untouched; bpy `nodes.new()` is informational only - the
+  RNA constructor bypasses the tree default). User confirmed in the
+  Blender UI: Shift+A add of the nodes gives width 240.
+
 Provenance rule: any committed spec JSON must carry tag + commit + source
 sha256 that match the DCTL actually parsed. Do not regenerate lazily and
 commit with stale provenance.

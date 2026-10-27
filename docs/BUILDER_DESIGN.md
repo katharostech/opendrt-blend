@@ -54,6 +54,13 @@ its own output sockets. Harness/render settings = Build wave.
   post-selection overrides with that look's chain values (f32-exact
   serialization). Branch/fn/dgpw/vdot groups are NOT assets; the 8
   user-facing groups are, in the one "OpenDRT" catalog.
+- User-facing instance width (2026-10-27 user request): the 8 asset groups
+  set `default_group_node_width = 240` (stock 140); wrapper trees also set
+  their inner "base" instance `width = 240` explicitly. Internal fn/branch/
+  dgpw/vdot trees keep 140. Note: bpy `nodes.new()` bypasses the tree
+  default (probe prints an info line); the UI paths honor it (verified
+  Shift+A 2026-10-27). Probe: tools/probes/probe_width.py.
+
 
 ## A. IR inventory
 
